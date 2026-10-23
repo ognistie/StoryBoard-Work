@@ -10,14 +10,13 @@ App do time para o DevDay Community Hackathon São Paulo (OpenAI, 23/10/2026). D
 - Limite de escopo: até 6 cenas, sem gerar imagem, áudio ou vídeo.
 - Nota: funcional, criatividade, apresentação e cumprimento do desafio, 25% cada.
 
-## Decisão em aberto: a IA
+## IA
 
-Duas versões da OpenAI existem e o time ainda não escolheu:
-
-- `main` (Guilherme): chave no navegador, nas Configurações. Gera e edita imagens com GPT Image.
-- Versão local do André: chave só no servidor, em funções da Vercel em `api/`, via AI SDK. Não gera imagens; o desenho vem do renderizador local (`src/lib/sketch.ts`).
-
-Enquanto isso, deixe `src/lib/ai/`, `src/lib/settings.ts` e `src/components/SettingsModal.tsx` como estão. Troque esta seção pela decisão quando ela sair.
+- A OpenAI só é chamada pelas funções da Vercel em `api/`, via AI SDK. A chave mora no servidor (`OPENAI_API_KEY`), então o site publicado funciona sem ninguém colar chave.
+- O formato de cada pedido e resposta fica em `src/lib/ai/contract.ts` (Zod), usado pelo navegador e pelo servidor. Uma tarefa nova de IA é um arquivo novo em `api/` mais o seu schema no contrato.
+- O app não gera imagens. O desenho de cada quadro vem do renderizador local (`src/lib/sketch.ts`).
+- Imports relativos no caminho do servidor (`api/` → `src/lib/ai/contract.ts`, `server.ts` → `src/lib/types.ts`) levam `.js`: a Vercel roda `api/` como ESM no Node.
+- Rodar local com IA: `vercel dev`. O `bun run dev` sobe só o Vite, sem `api/`.
 
 ## Trabalho em dupla no `main`
 

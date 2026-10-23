@@ -52,18 +52,11 @@ export type TimeOfDay = 'day' | 'night' | 'sunset' | 'unknown'
 
 export type FrameStatus = 'draft' | 'review' | 'changes' | 'approved'
 
-export type ShotType =
-  | 'geral'
-  | 'aberto'
-  | 'medio'
-  | 'americano'
-  | 'close'
-  | 'extreme-close'
-  | 'detalhe'
-  | 'pov'
-  | 'ots'
+export const SHOT_TYPES = ['geral', 'aberto', 'medio', 'americano', 'close', 'extreme-close', 'detalhe', 'pov', 'ots'] as const
+export type ShotType = (typeof SHOT_TYPES)[number]
 
-export type CameraMove = 'estatico' | 'pan' | 'tilt' | 'dolly' | 'tracking' | 'truck' | 'zoom' | 'handheld' | 'crane'
+export const CAMERA_MOVES = ['estatico', 'pan', 'tilt', 'dolly', 'tracking', 'truck', 'zoom', 'handheld', 'crane'] as const
+export type CameraMove = (typeof CAMERA_MOVES)[number]
 
 export interface Annotation {
   id: string

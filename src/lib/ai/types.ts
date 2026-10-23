@@ -1,5 +1,6 @@
-import type { Asset, Project, Region, ShotType, SketchSpec, TimeOfDay, CameraMove } from '../types'
+import type { Asset, Project, Region, ShotType, SketchSpec, TimeOfDay } from '../types'
 import type { ParsedScene } from '../context'
+import type { PlannedFrame } from './contract'
 
 export interface RefImage {
   blob: Blob
@@ -40,16 +41,7 @@ export interface GenerateRequest {
   onPreview?: (r: ImageResult) => void
 }
 
-export interface PlannedFrame {
-  title: string
-  description: string
-  action: string
-  dialogue: string
-  shot: ShotType
-  movement: CameraMove
-  characters: string[]
-  duration: number
-}
+export type { PlannedFrame } from './contract'
 
 export interface Capabilities {
   editImage: boolean

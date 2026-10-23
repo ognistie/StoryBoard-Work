@@ -29,8 +29,8 @@ const SUGGESTIONS = [
 export function AIPanel() {
   const { project, ordered, assets, jobs, proposals, role, userId, scenes } = useWD()
   const ws = useWS()
-  const settings = useSettings()
-  const provider = useMemo(() => getProvider(), [settings.provider, settings.openaiKey, settings.imageModel, settings.imageQuality, settings.stream]) // eslint-disable-line react-hooks/exhaustive-deps
+  const providerId = useSettings((s) => s.provider)
+  const provider = useMemo(() => getProvider(), [providerId])
   const selected = ordered.filter((f) => ws.selection.includes(f.id))
   const [instruction, setInstruction] = useState('')
   const [keep, setKeep] = useState(true)
@@ -106,11 +106,11 @@ export function AIPanel() {
         <Info className="mt-0.5 size-3.5 shrink-0" />
         {provider.isDemo ? (
           <span>
-            <b>Modo demonstração:</b> imagens desenhadas localmente, sem IA real. Configure a OpenAI em Configurações para edições livres.
+            <b>Modo demonstração:</b> imagens desenhadas localmente, sem IA real. Escolha a OpenAI em Configurações para reescrever os quadros com IA.
           </span>
         ) : (
           <span>
-            <b>{provider.label}</b> · {provider.model}. O quadro e trechos do projeto serão enviados ao provedor.
+            <b>{provider.label}</b> · {provider.model}. O texto do quadro e trechos do projeto vão para a OpenAI. O desenho é feito localmente.
           </span>
         )}
       </div>

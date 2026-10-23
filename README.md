@@ -8,8 +8,9 @@ O diferencial é a **edição conversacional e incremental**: o usuário selecio
 
 ```bash
 bun install
-bun run dev        # http://localhost:5173
-bun run test       # testes (Vitest). `bun test` roda outro testador e ignora o Vitest.
+vercel dev         # app + funções de IA em api/ (precisa de OPENAI_API_KEY)
+bun run dev        # só o app, em http://localhost:5173 (a IA fica fora do ar)
+bun run test       # testes (Vitest). Não use `bun test`: ele ignora o Vitest.
 bun run build      # build de produção em dist/
 ```
 
@@ -30,18 +31,12 @@ O app abre com um projeto de demonstração (“Casa Nova — Filme 30””): 9
 
 | Provedor | O que faz | Como ativar |
 |---|---|---|
-| **Demonstração local** (padrão) | **Não é IA.** Desenha quadros no estilo de storyboard (tinta e lápis) e entende pedidos simples: adicionar ou remover pessoa ou personagem, expressão (sorrindo, surpreso…), noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
-| **OpenAI (ChatGPT)** | Edição real com **GPT Image**: o quadro atual vai como imagem de entrada, com `input_fidelity: high` para preservar o que não foi pedido, junto com o prompt estruturado e as imagens de referência dos personagens. A área marcada vira **máscara de verdade** (só ela é repintada). Com streaming, as **prévias parciais** aparecem enquanto a imagem é gerada. O modelo de texto reescreve a descrição, descreve imagens importadas e faz a decupagem do roteiro em quadros (JSON com schema estrito). | Configurações → OpenAI (ChatGPT) → colar a chave de [platform.openai.com/api-keys](https://platform.openai.com/api-keys) → Testar. Também dá para usar `VITE_OPENAI_API_KEY` num arquivo `.env.local`. |
+| **Demonstração local** | **Não é IA.** Desenha quadros no estilo de storyboard (tinta e lápis) e entende pedidos simples: adicionar ou remover pessoa ou personagem, expressão (sorrindo, surpreso…), noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
+| **OpenAI** (padrão) | Faz a decupagem do roteiro em quadros, reescreve descrições e descreve imagens importadas, sempre com saída estruturada (Zod). O app não gera imagens: o desenho do quadro sai do mesmo renderizador local do modo demonstração. | Definir `OPENAI_API_KEY` no ambiente da Vercel. Localmente, rodar com `vercel dev`, que serve o `api/` junto com o Vite. |
 
-Modelos padrão: `gpt-image-1` (imagem) e `gpt-4.1-mini` (texto). Os dois podem ser trocados nas configurações, assim como a qualidade (rápida/média/alta) e as prévias progressivas.
+Modelo: `gpt-6.1-sol`, definido em `src/lib/ai/server.ts`. As chamadas passam pelas funções em `api/`, então a chave nunca chega ao navegador. O formato de cada pedido e resposta fica em `src/lib/ai/contract.ts`, usado pelos dois lados.
 
-Observações:
-
-- Os modelos GPT Image podem exigir **organização verificada** na OpenAI. Se for o caso, o erro aparece no quadro com a orientação, e a imagem original continua intacta.
-- Em projetos 16:9 a OpenAI gera em 1536×1024 (3:2). O card enquadra a imagem em 16:9, cortando um pouco das bordas de cima e de baixo.
-- Se a conta não aceitar streaming, o app refaz o pedido automaticamente sem streaming.
-
-A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada provedor (`editImage`, `generateImage`, `maskedRegion: native | guided | none`, `progressivePreview`). Assim, dá para acrescentar outro provedor sem mexer no restante do app.
+A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada provedor (`editImage`, `generateImage`, `maskedRegion: native | guided | none`, `progressivePreview`).
 
 ## Linguagem visual dos quadros
 
@@ -55,7 +50,7 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 
 **Stack:** Vite + React 18 + TypeScript, Tailwind CSS v4, Dexie (IndexedDB), Zustand, dnd-kit, lucide, pdf.js e mammoth (carregados sob demanda).
 
-- **Sem backend, por decisão do time**: o estado fica no navegador (IndexedDB). O Dexie propaga as mudanças entre abas da mesma origem, o que dá o “tempo real” entre Produtora e Cliente. A presença usa `BroadcastChannel`. Escolhemos Vite em vez de Next.js porque não existe servidor.
+- **Sem banco no servidor, por decisão do time**: o estado fica no navegador (IndexedDB). O único código de servidor são as funções de IA em `api/`. O Dexie propaga as mudanças entre abas da mesma origem, o que dá o “tempo real” entre Produtora e Cliente. A presença usa `BroadcastChannel`. Escolhemos Vite em vez de Next.js porque não há páginas renderizadas no servidor.
 - **Camada de domínio única** (`src/lib/repo.ts`): toda mutação autoriza o ator pelo papel no projeto, grava um evento de auditoria e trata revisões e imagens como *append-only*.
 - **Versionamento** (`Revision`): hash curto, autor, mensagem, snapshot imutável do quadro, registro de IA (instrução, prompt-base, prompt estruturado, provedor, latência, trechos de contexto e exceção autorizada). Restaurar cria uma nova revisão.
 - **Cópia de trabalho × versão**: editar metadados deixa o quadro “não versionado” até alguém registrar a versão. A aprovação sempre aponta para uma revisão exata e registra antes as alterações pendentes.
@@ -77,7 +72,8 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 
 ```
 src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
-                 jobs (fila IA), ai/ (openai, demo), sketch* (renderizador local), session, presence, seed
+                 jobs (fila IA), ai/ (openai, demo, contract, server), sketch* (renderizador local), session, presence, seed
+api/             funções da Vercel que chamam a OpenAI (plan-shots, rewrite-description, describe-image)
 src/views/       Dashboard, NewProjectModal, JoinView, Workspace
 src/views/workspace/  Canvas, FrameCard, Sidebar, RightPanel (IA, Detalhes, Comentários, Contexto, Histórico),
                  AIPanel, DiffModal, Viewer (anotações), Presentation (animatic), Share, Export, Script, Context,
@@ -87,8 +83,7 @@ src/test/        testes de contexto/regras/edição demo e de repo (revisões, a
 
 ## Limitações conhecidas
 
-- **Sem servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. Links de convite só funcionam nesse mesmo navegador. As identidades são de demonstração e escolhidas no avatar. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
-- **Chave da OpenAI no navegador**: aceitável para a demo, já que fica salva só localmente. Em produção, as chamadas devem passar por um backend (proxy), para a chave nunca chegar ao cliente.
+- **Sem banco no servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. Links de convite só funcionam nesse mesmo navegador. As identidades são de demonstração e escolhidas no avatar. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
 - **Modo demo**: entende um vocabulário limitado e avisa quando não entende o pedido. Não imita uma IA real.
 - **Busca de contexto** é lexical (BM25), sem embeddings.
 - **Fora do escopo do MVP**: menções com notificação por e-mail, comentários em regiões retangulares (hoje são pontos) e desfazer/refazer granular para metadados (a restauração formal já existe).
