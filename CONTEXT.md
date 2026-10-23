@@ -53,8 +53,8 @@ Arquivo no Paper: **"Decupa"** (id `01M5MMZ6NG5SRKR97J85Q5QTFT`), com 2 telas: `
 - **Riscos para o anúncio:** evitar números (R$ 81 bi, 150 mil contas: as fontes divergem), lucro/crescimento, segurança/antifraude, preço, apostas.
 - **Reels "Energia que vira potência" (30s, 5 cenas):**
   1. A fórmula (4s, detalhe, push-in): mão escreve P = E/t; "Potência é energia a cada unidade de tempo."
-  2. Energia escoa (7s, médio, time-lapse): gestora entre planilhas do dia até a noite; "Sua energia se consome devagar."
-  3. Encaixe (6s, motion, zoom out): pílulas viram blocos azuis; "Quatro produtos. Um ecossistema."
+  2. Energia escoa (7s, médio, time-lapse): gestora entre planilhas do dia até a noite; três pílulas com os problemas; "Processos repetitivos consomem sua energia devagar."
+  3. Encaixe (6s, motion, zoom out): as três pílulas viram blocos e, com um quarto, formam o mosaico azul dos produtos; na tela, "Quatro produtos. Um ecossistema."; locução "Conciliação e cobrança no automático."
   4. Energia volta (7s, conjunto, travelling, formato 1:1): de manhã ela leva o time para a estratégia; "Isso é transformar energia em potência."
   5. Assinatura (6s, geral, fixa): blocos formam o símbolo; "iugu. Tecnologia que vira potência."
 
