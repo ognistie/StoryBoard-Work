@@ -11,6 +11,7 @@ import type {
   Frame,
   FrameContent,
   GenerationJob,
+  Note,
   Project,
   Proposal,
   Revision,
@@ -49,6 +50,7 @@ export const CONTENT_KEYS: (keyof FrameContent)[] = [
   'imageId',
   'sketch',
   'annotations',
+  'aspect',
 ]
 
 export function contentOf(frame: FrameContent): FrameContent {
@@ -106,6 +108,7 @@ export async function createProject(input: {
   ownerId: string
   members?: { userId: string; role: Role }[]
   aspect?: Project['aspect']
+  durationSeconds?: number
 }): Promise<string> {
   const id = uid('prj')
   const now = Date.now()
@@ -122,35 +125,12 @@ export async function createProject(input: {
     styleNotes: '',
     members,
     aspect: input.aspect ?? '16:9',
+    durationSeconds: input.durationSeconds,
     createdAt: now,
     updatedAt: now,
   })
   await logEvent(id, input.ownerId, 'project.created', `Projeto “${input.name}” criado`)
   return id
-}
-
-export async function updateProject(projectId: string, actorId: string, patch: Partial<Project>) {
-  await authorize(projectId, actorId, 'manage')
-  await db.projects.update(projectId, { ...patch, updatedAt: Date.now() })
-}
-
-export async function deleteProject(projectId: string, actorId: string) {
-  await authorize(projectId, actorId, 'manage')
-  await db.transaction('rw', db.tables, async () => {
-    for (const t of [db.scenes, db.frames, db.revisions, db.jobs, db.proposals, db.approvals, db.comments, db.docs, db.assets, db.events, db.shareLinks, db.snapshots]) {
-      await (t as typeof db.frames).where('projectId').equals(projectId).delete()
-    }
-    await db.projects.delete(projectId)
-  })
-}
-
-export async function setMemberRole(projectId: string, actorId: string, userId: string, role: Role | null) {
-  const { project } = await authorize(projectId, actorId, 'manage')
-  let members = project.members.filter((m) => m.userId !== userId)
-  if (role) members = [...members, { userId, role }]
-  if (!members.some((m) => m.role === 'producer' || m.role === 'admin')) throw new Error('O projeto precisa de ao menos um Produtor ou Admin.')
-  await db.projects.update(projectId, { members })
-  await logEvent(projectId, actorId, 'member.changed', role ? `${userById(userId).name} agora é ${role}` : `${userById(userId).name} removido(a) do projeto`)
 }
 
 // ---------------------------------------------------------------- share links
@@ -306,25 +286,6 @@ export async function reorderFrames(projectId: string, actorId: string, orderedI
   })
 }
 
-export async function duplicateFrame(frameId: string, actorId: string, content?: FrameContent, message?: string) {
-  const frame = await db.frames.get(frameId)
-  if (!frame) return
-  return createFrame(frame.projectId, frame.sceneId, actorId, { ...(content ?? contentOf(frame)), title: `${(content ?? frame).title} (alt.)` }, {
-    afterOrder: frame.order,
-    message: message ?? `Duplicado de “${frame.title}”`,
-    kind: 'manual',
-  })
-}
-
-export async function deleteFrame(frameId: string, actorId: string) {
-  const frame = await db.frames.get(frameId)
-  if (!frame) return
-  await authorize(frame.projectId, actorId, 'edit')
-  // Revisions are kept for audit; only the live frame is removed.
-  await db.frames.delete(frameId)
-  await logEvent(frame.projectId, actorId, 'frame.deleted', `Quadro “${frame.title}” removido (histórico preservado)`)
-}
-
 export async function restoreRevision(revisionId: string, actorId: string) {
   const rev = await db.revisions.get(revisionId)
   if (!rev) throw new Error('Revisão não encontrada.')
@@ -390,10 +351,6 @@ function summarizeInstruction(job: GenerationJob) {
   return job.kind === 'generate' ? `Imagem gerada: ${t}` : t.charAt(0).toUpperCase() + t.slice(1)
 }
 
-export async function discardCandidate(jobId: string) {
-  await db.jobs.update(jobId, { decision: 'discarded' })
-}
-
 export async function decideProposal(proposalId: string, actorId: string, accept: boolean, note?: string) {
   const prop = await db.proposals.get(proposalId)
   if (!prop || prop.status !== 'open') throw new Error('Proposta não está aberta.')
@@ -454,13 +411,6 @@ export async function addComment(projectId: string, frameId: string, actorId: st
   return id
 }
 
-export async function setCommentResolved(commentId: string, actorId: string, resolved: boolean) {
-  const c = await db.comments.get(commentId)
-  if (!c) return
-  await authorize(c.projectId, actorId, 'comment')
-  await db.comments.update(commentId, { resolved })
-}
-
 // ---------------------------------------------------------------- context documents
 
 export async function saveDoc(
@@ -512,14 +462,6 @@ export async function syncScenesFromScript(projectId: string, text: string): Pro
   return flagged
 }
 
-export async function deleteDoc(docId: string, actorId: string) {
-  const doc = await db.docs.get(docId)
-  if (!doc) return
-  await authorize(doc.projectId, actorId, 'edit')
-  await db.docs.delete(docId)
-  await logEvent(doc.projectId, actorId, 'doc.deleted', `Documento “${doc.title}” removido`)
-}
-
 // ---------------------------------------------------------------- assets
 
 export async function saveAsset(projectId: string, actorId: string, asset: Partial<Asset> & { name: string; type: Asset['type'] }) {
@@ -531,29 +473,32 @@ export async function saveAsset(projectId: string, actorId: string, asset: Parti
   return id
 }
 
-export async function deleteAsset(assetId: string, actorId: string) {
-  const a = await db.assets.get(assetId)
-  if (!a) return
-  await authorize(a.projectId, actorId, 'edit')
-  await db.assets.delete(assetId)
-}
-
 // ---------------------------------------------------------------- snapshots
-
-export async function createSnapshot(projectId: string, actorId: string, name: string) {
-  await authorize(projectId, actorId, 'edit')
-  const frames = await db.frames.where('projectId').equals(projectId).sortBy('order')
-  await db.snapshots.add({
-    id: uid('snp'),
-    projectId,
-    name,
-    authorId: actorId,
-    createdAt: Date.now(),
-    frames: frames.map((f) => ({ frameId: f.id, revisionId: f.headRevisionId, order: f.order })),
-  })
-  await logEvent(projectId, actorId, 'snapshot.created', `Marco “${name}” criado com ${frames.length} quadros`)
-}
 
 export function frameNeedsRevalidation(frame: Frame) {
   return !!frame.approvedRevisionId && (frame.approvedRevisionId !== frame.headRevisionId || frame.dirty)
+}
+
+// ---------------------------------------------------------------- notes
+
+export async function createNote(projectId: string, actorId: string, at: { x: number; y: number }): Promise<string> {
+  await authorize(projectId, actorId, 'comment')
+  const now = Date.now()
+  const note: Note = { id: uid('note'), projectId, authorId: actorId, text: '', x: at.x, y: at.y, rotation: Math.round((Math.random() * 5 - 2.5) * 10) / 10, createdAt: now, updatedAt: now }
+  await db.notes.add(note)
+  return note.id
+}
+
+export async function updateNote(noteId: string, actorId: string, patch: Partial<Pick<Note, 'text' | 'x' | 'y'>>) {
+  const note = await db.notes.get(noteId)
+  if (!note) return
+  await authorize(note.projectId, actorId, 'comment')
+  await db.notes.update(noteId, { ...patch, updatedAt: Date.now() })
+}
+
+export async function deleteNote(noteId: string, actorId: string) {
+  const note = await db.notes.get(noteId)
+  if (!note) return
+  await authorize(note.projectId, actorId, 'comment')
+  await db.notes.delete(noteId)
 }

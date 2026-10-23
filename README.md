@@ -22,7 +22,8 @@ O app abre com três projetos de demonstração: **iugu · Energia que vira pot�
 
 1. **Briefing mudou**: no projeto da iugu, o briefing está na v2. As cenas 2, 3 e 4 têm uma versão “Briefing mudou” com o antes e depois.
 2. **Histórico**: a cena 3 (Encaixe) tem quatro versões: a original, dois pedidos por prompt e a mudança de briefing. Use **Restaurar** para criar uma versão nova a partir de uma antiga, sem apagar nada.
-3. Também vale mostrar: **Apresentar** (animatic com as durações) e **Exportar** (PDF, shot list em CSV e pacote JSON).
+3. **Prompt por cena**: selecione uma cena e peça uma mudança na caixa de baixo, ou use os atalhos “Só o desenho”, “Só o diálogo” e “Mais curta”. Arraste uma cena para reordenar, puxe o arco do canto para redimensionar e use **Nota** para colar um lembrete no canvas.
+4. **Exportar**: PDF, roteiro em Markdown, shot list em CSV e pacote JSON.
 
 ## IA: provedores
 
@@ -69,12 +70,11 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 
 ```
 src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
-                 jobs (fila IA), ai/ (openai, demo, contract, server), sketch* (renderizador local), session, presence, seed
-api/             funções da Vercel que chamam a OpenAI (plan-briefing, plan-shots, rewrite-description, describe-image)
+                 jobs (fila IA), ai/ (openai, demo, contract, server), sketch* (renderizador local), session, seed
+api/             funções da Vercel que chamam a OpenAI (plan-briefing, revise-scene, apply-briefing, plan-shots, rewrite-description, describe-image)
 src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), JoinView, Workspace
-src/views/workspace/  Canvas, FrameCard, Sidebar, RightPanel (IA, Detalhes, Comentários, Contexto, Histórico),
-                 AIPanel, DiffModal, Viewer (anotações), Presentation (animatic), Share, Export, Script, Context,
-                 Assets, History (versões/atividade/marcos), Team
+src/views/workspace/  SceneCanvas (React Flow: briefing, cenas, notas, zoom), nodes/ (BriefingNode, SceneNode, NoteNode),
+                 Inspector (Versões e Ficha), PromptBox, ExportMenu, scene (rótulos e formatos)
 src/test/        testes de contexto/regras/edição demo e de repo (revisões, aprovação, propostas, concorrência, permissões)
 ```
 

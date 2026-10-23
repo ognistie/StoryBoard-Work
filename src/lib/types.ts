@@ -31,6 +31,8 @@ export interface Project {
   members: ProjectMember[]
   coverImageId?: string
   aspect: '16:9' | '2.39:1' | '9:16' | '1:1'
+  /** Length asked for in the briefing. The scenes' durations may add up to something else. */
+  durationSeconds?: number
   createdAt: number
   updatedAt: number
 }
@@ -113,6 +115,8 @@ export interface FrameContent {
   imageId?: string
   sketch?: SketchSpec
   annotations: Annotation[]
+  /** The scene's own format. Unset means the project's format. */
+  aspect?: Project['aspect']
 }
 
 export interface Frame extends FrameContent {
@@ -151,6 +155,8 @@ export interface AIRecord {
   region?: Region
   exception?: string // justification when the user overrode a script conflict
   latencyMs?: number
+  /** One line from the model saying what it changed. */
+  summary?: string
 }
 
 export interface Revision {
@@ -255,6 +261,20 @@ export interface Comment {
   parentId?: string
   resolved: boolean
   createdAt: number
+}
+
+/** A sticky note on the project canvas. Position is in canvas coordinates. */
+export interface Note {
+  id: string
+  projectId: string
+  authorId: string
+  text: string
+  x: number
+  y: number
+  /** Tilt in degrees, so notes look stuck on by hand. */
+  rotation: number
+  createdAt: number
+  updatedAt: number
 }
 
 export type DocKind = 'script' | 'brief' | 'treatment' | 'bible' | 'art' | 'tech' | 'other'

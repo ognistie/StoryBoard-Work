@@ -7,6 +7,7 @@ import type {
   ContextDocVersion,
   Frame,
   GenerationJob,
+  Note,
   Project,
   ProjectEvent,
   Proposal,
@@ -38,6 +39,7 @@ export class StoryboardDB extends Dexie {
   events!: EntityTable<ProjectEvent, 'id'>
   shareLinks!: EntityTable<ShareLink, 'id'>
   snapshots!: EntityTable<Snapshot, 'id'>
+  notes!: EntityTable<Note, 'id'>
 
   constructor(name = 'frameline') {
     super(name)
@@ -58,6 +60,7 @@ export class StoryboardDB extends Dexie {
       shareLinks: 'id, projectId, &token',
       snapshots: 'id, projectId',
     })
+    this.version(2).stores({ notes: 'id, projectId' })
   }
 }
 

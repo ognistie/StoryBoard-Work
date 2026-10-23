@@ -1,0 +1,275 @@
+import { useEffect, useState } from 'react'
+import { cx, Spinner, toast, toastError } from '../../components/ui'
+import { timeAgo } from '../../lib/hooks'
+import { commitFrame, restoreRevision, updateFrame } from '../../lib/repo'
+import { userById } from '../../lib/session'
+import { CAMERA_MOVES, SHOT_TYPES, type Frame, type FrameContent, type Revision } from '../../lib/types'
+import { MOVE_LABEL, SHOT_LABEL } from '../../lib/context'
+import { useWD } from './context'
+import { changeSummary, FORMAT_LABEL, parseDialogue, quoted, type Aspect } from './scene'
+import { useWS, type InspectorTab } from './store'
+
+const BADGE = 'flex h-5 items-center rounded-[10px] px-2 text-[11px] leading-[14px] font-semibold'
+
+function Tabs({ value, onChange }: { value: InspectorTab; onChange: (t: InspectorTab) => void }) {
+  const tab = (id: InspectorTab, label: string) => (
+    <button
+      role="tab"
+      aria-selected={value === id}
+      onClick={() => onChange(id)}
+      className={cx(
+        'flex h-[30px] flex-1 items-center justify-center rounded-full text-[13px] leading-4 transition-colors',
+        value === id ? 'bg-white font-semibold text-black shadow-[0_1px_2px_#0000001A]' : 'font-medium text-[#3A3A3C] hover:text-black',
+      )}
+    >
+      {label}
+    </button>
+  )
+  return (
+    <div role="tablist" className="flex rounded-full bg-[#F4F4F5] p-[3px]">
+      {tab('versions', 'Versões')}
+      {tab('sheet', 'Ficha')}
+    </div>
+  )
+}
+
+/** The first text field that differs between two versions, labelled the way the scene card labels it. */
+function textChange(rev: Revision, parent?: Revision) {
+  if (!parent) return undefined
+  const a = parent.snapshot
+  const b = rev.snapshot
+  if (a.dialogue !== b.dialogue) {
+    const before = parseDialogue(a.dialogue)
+    const after = parseDialogue(b.dialogue)
+    const speaker = after.speaker ?? before.speaker ?? 'Diálogo'
+    return { label: speaker.charAt(0) + speaker.slice(1).toLowerCase(), before: quoted(before.line), after: quoted(after.line) }
+  }
+  if (a.description !== b.description) return { label: 'Descrição', before: a.description, after: b.description }
+  if (a.title !== b.title) return { label: 'Título', before: a.title, after: b.title }
+  return undefined
+}
+
+function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: Revision; current: boolean; userId: string }) {
+  const [busy, setBusy] = useState(false)
+  const browsing = useWS((s) => s.browsing[rev.frameId])
+  const author = rev.authorId === userId ? 'Você' : userById(rev.authorId).name.split(' ')[0]
+  const change = rev.kind === 'briefing' ? textChange(rev, parent) : undefined
+  const original = rev.kind === 'initial'
+  // Versions made by a person carry an author line; the briefing ones explain themselves.
+  const withAuthor = !original && rev.kind !== 'briefing'
+
+  const preview = () => {
+    const next = { ...useWS.getState().browsing }
+    if (current || browsing === rev.id) delete next[rev.frameId]
+    else next[rev.frameId] = rev.id
+    useWS.getState().set({ browsing: next })
+  }
+
+  const restore = async () => {
+    setBusy(true)
+    try {
+      await restoreRevision(rev.id, userId)
+      const next = { ...useWS.getState().browsing }
+      delete next[rev.frameId]
+      useWS.getState().set({ browsing: next })
+      toast(`Versão ${rev.number} restaurada`, { tone: 'ok' })
+    } catch (e) {
+      toastError(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={preview}
+      className={cx(
+        'group flex cursor-pointer flex-col rounded-[14px] p-3.5 transition-colors',
+        rev.kind === 'briefing' ? 'gap-2' : 'gap-1.5',
+        current ? 'bg-[#F4F4F5]' : browsing === rev.id ? 'bg-[#0071E30D]' : 'hover:bg-[#FAFAFA]',
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[15px] leading-[18px] font-medium text-black">v{rev.number}</span>
+          {current && <span className={cx(BADGE, 'bg-accent text-white')}>Atual</span>}
+          {rev.kind === 'briefing' && <span className={cx(BADGE, 'bg-[#0071E31A] text-accent')}>Briefing mudou</span>}
+          {original && <span className={cx(BADGE, 'bg-[#F4F4F5] text-muted')}>Briefing original</span>}
+          {rev.kind === 'restore' && <span className={cx(BADGE, 'bg-[#F4F4F5] text-muted')}>Restaurada</span>}
+        </div>
+        {withAuthor || current ? (
+          <span className="text-[12px] leading-4 text-faint">{timeAgo(rev.createdAt)}</span>
+        ) : (
+          <span className="relative flex h-4 items-center">
+            <span className="text-[12px] leading-4 text-faint transition-opacity group-hover:opacity-0">{timeAgo(rev.createdAt)}</span>
+            <button
+              disabled={busy}
+              onClick={(e) => (e.stopPropagation(), void restore())}
+              className="absolute right-0 flex h-7 items-center rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+            >
+              Restaurar
+            </button>
+          </span>
+        )}
+      </div>
+      <p className={cx('text-[14px] leading-5', original ? 'text-muted' : 'text-[#1D1D1F]')}>{rev.kind === 'ai-edit' ? quoted(rev.message) : rev.message}</p>
+      {change && (
+        <div className={cx('flex flex-col gap-[3px] rounded-[14px] px-3 py-2.5', current ? 'bg-white' : 'bg-[#F4F4F5]')}>
+          <span className="text-[11px] leading-[14px] font-semibold text-[#8E8E93]">{change.label}</span>
+          {change.before && <span className="text-[13px] leading-[18px] text-faint line-through decoration-1">{change.before}</span>}
+          <span className="text-[13px] leading-[18px] font-medium text-[#1D1D1F]">{change.after}</span>
+        </div>
+      )}
+      {withAuthor && (
+        <div className={cx('flex items-center justify-between pt-0.5', !current && 'min-h-7')}>
+          <span className="text-[12px] leading-4 text-muted">
+            {author} · {changeSummary(rev, parent)}
+          </span>
+          {!current && (
+            <button
+              disabled={busy}
+              onClick={(e) => (e.stopPropagation(), void restore())}
+              className="flex h-7 items-center gap-1.5 rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+            >
+              {busy && <Spinner className="size-3.5 text-accent" />}
+              Restaurar
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Versions({ frame, revisions }: { frame: Frame; revisions: Revision[] }) {
+  const { userId } = useWD()
+  const newestFirst = [...revisions].reverse()
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-1 pb-3">
+      {newestFirst.map((rev) => (
+        <VersionRow key={rev.id} rev={rev} parent={revisions.find((r) => r.id === rev.parentId)} current={rev.id === frame.headRevisionId} userId={userId} />
+      ))}
+    </div>
+  )
+}
+
+const FIELD_LABEL = 'text-[12px] leading-4 font-medium text-muted'
+const FIELD = 'w-full rounded-[10px] border border-[#E4E4E7] bg-white px-3 py-2 text-[14px] leading-5 text-[#18181B] outline-none transition-colors focus:border-accent'
+
+function Sheet({ frame }: { frame: Frame }) {
+  const { project, userId } = useWD()
+  const [saving, setSaving] = useState(false)
+  const set = (patch: Partial<FrameContent>) => void updateFrame(frame.id, userId, patch).catch(toastError)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await commitFrame(frame.id, userId, 'Edição na ficha', 'manual')
+      toast('Nova versão salva', { tone: 'ok' })
+    } catch (e) {
+      toastError(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-[22px] pt-1 pb-4">
+        <label className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL}>Título</span>
+          <input className={FIELD} value={frame.title} onChange={(e) => set({ title: e.target.value })} />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL}>Descrição</span>
+          <textarea rows={3} className={cx(FIELD, 'resize-none')} value={frame.description} onChange={(e) => set({ description: e.target.value })} />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className={FIELD_LABEL}>Diálogo</span>
+          <textarea rows={2} className={cx(FIELD, 'resize-none')} value={frame.dialogue} placeholder="QUEM FALA: a fala" onChange={(e) => set({ dialogue: e.target.value })} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Duração (s)</span>
+            <input type="number" min={1} max={60} className={FIELD} value={frame.duration} onChange={(e) => set({ duration: Math.max(1, Number(e.target.value) || 1) })} />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Formato</span>
+            <select className={FIELD} value={frame.aspect ?? project.aspect} onChange={(e) => set({ aspect: e.target.value === project.aspect ? undefined : (e.target.value as Aspect) })}>
+              {(Object.keys(FORMAT_LABEL) as Aspect[]).map((a) => (
+                <option key={a} value={a}>
+                  {FORMAT_LABEL[a]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Plano</span>
+            <select className={FIELD} value={frame.shot} onChange={(e) => set({ shot: e.target.value as Frame['shot'] })}>
+              {SHOT_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {SHOT_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className={FIELD_LABEL}>Câmera</span>
+            <select className={FIELD} value={frame.movement} onChange={(e) => set({ movement: e.target.value as Frame['movement'] })}>
+              {CAMERA_MOVES.map((m) => (
+                <option key={m} value={m}>
+                  {MOVE_LABEL[m]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+      <div className="flex items-center justify-between border-t border-[#E4E4E7] px-[22px] py-3">
+        <span className="text-[12px] leading-4 text-muted">{frame.dirty ? 'Alterações ainda sem versão' : 'Tudo salvo'}</span>
+        <button
+          disabled={!frame.dirty || saving}
+          onClick={() => void save()}
+          className="flex h-8 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] leading-4 font-medium text-white transition-opacity disabled:opacity-40"
+        >
+          {saving && <Spinner className="size-3.5 text-white" />}
+          Salvar versão
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** The panel for the selected scene: its versions, or its sheet of fields. */
+export function Inspector() {
+  const { ordered, revisions } = useWD()
+  const { selectedId, inspectorTab, set } = useWS()
+  const index = ordered.findIndex((f) => f.id === selectedId)
+  const frame = ordered[index]
+
+  // Keep a scene selected: the one changed last when nothing is, or when the selected one was removed.
+  useEffect(() => {
+    if (frame || !ordered.length) return
+    const latest = ordered.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
+    set({ selectedId: latest.id })
+  }, [frame, ordered, set])
+
+  return (
+    <aside className="flex h-full w-full flex-col overflow-clip rounded-2xl border border-[#E4E4E7] bg-white shadow-[0_1px_2px_#0000000A,0_8px_24px_#0000000F]">
+      {frame ? (
+        <>
+          <div className="flex flex-col gap-3.5 px-[22px] pt-[22px] pb-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[13px] leading-4 font-medium text-muted">Cena {index + 1}</span>
+              <h2 className="truncate text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-black">{frame.title}</h2>
+            </div>
+            <Tabs value={inspectorTab} onChange={(t) => set({ inspectorTab: t })} />
+          </div>
+          {inspectorTab === 'versions' ? <Versions frame={frame} revisions={revisions.filter((r) => r.frameId === frame.id)} /> : <Sheet frame={frame} />}
+        </>
+      ) : (
+        <div className="flex flex-1 items-center justify-center px-8 text-center text-[14px] leading-5 text-muted">Este projeto ainda não tem cenas.</div>
+      )}
+    </aside>
+  )
+}

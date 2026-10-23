@@ -7,13 +7,10 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from 'zustand'
 import { userById } from '../lib/session'
-import type { FrameStatus } from '../lib/types'
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 
@@ -101,34 +98,6 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
   )
 })
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
-  return (
-    <textarea
-      ref={ref}
-      className={cx(
-        'w-full resize-none rounded-lg border border-line bg-surface px-2.5 py-2 text-[13px] leading-relaxed text-fg outline-none transition-colors placeholder:text-muted hover:border-line-strong focus:border-accent focus:ring-3 focus:ring-accent/15',
-        className,
-      )}
-      {...rest}
-    />
-  )
-})
-
-export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={cx(
-        !className?.includes('w-') && 'w-full',
-        'h-8.5 rounded-lg border border-line bg-surface px-2 text-[13px] text-fg outline-none hover:border-line-strong focus:border-accent focus:ring-3 focus:ring-accent/15',
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </select>
-  )
-}
-
 export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <label className={cx('block space-y-1.5', className)}>
@@ -137,26 +106,6 @@ export function Field({ label, hint, children, className }: { label: string; hin
         {hint && <span className="font-normal text-muted">{hint}</span>}
       </span>
       {children}
-    </label>
-  )
-}
-
-export function Toggle({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cx('relative mt-0.5 h-5 w-8.5 shrink-0 rounded-full transition-colors', checked ? 'bg-accent' : 'bg-surface-3')}
-      >
-        <span className={cx('absolute top-0.5 size-4 rounded-full bg-white shadow-sm transition-transform', checked ? 'translate-x-4' : 'translate-x-0.5')} />
-      </button>
-      <span className="min-w-0">
-        <span className="block text-[13px] font-medium text-fg">{label}</span>
-        {description && <span className="block text-[12px] leading-snug text-muted">{description}</span>}
-      </span>
     </label>
   )
 }
@@ -198,23 +147,6 @@ export function Badge({ children, tone = 'neutral', className }: { children: Rea
   return <span className={cx('inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-medium whitespace-nowrap', tones[tone], className)}>{children}</span>
 }
 
-export const STATUS_META: Record<FrameStatus, { label: string; tone: 'neutral' | 'warn' | 'danger' | 'ok'; dot: string }> = {
-  draft: { label: 'Rascunho', tone: 'neutral', dot: 'bg-muted' },
-  review: { label: 'Em revisão', tone: 'warn', dot: 'bg-warn' },
-  changes: { label: 'Ajustes solicitados', tone: 'danger', dot: 'bg-danger' },
-  approved: { label: 'Aprovado', tone: 'ok', dot: 'bg-ok' },
-}
-
-export function StatusBadge({ status }: { status: FrameStatus }) {
-  const m = STATUS_META[status]
-  return (
-    <Badge tone={m.tone}>
-      <span className={cx('size-1.5 rounded-full', m.dot)} />
-      {m.label}
-    </Badge>
-  )
-}
-
 export function Avatar({ userId, size = 24, ring }: { userId: string; size?: number; ring?: boolean }) {
   const u = userById(userId)
   const initials = u.name
@@ -231,10 +163,6 @@ export function Avatar({ userId, size = 24, ring }: { userId: string; size?: num
       {initials}
     </span>
   )
-}
-
-export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-line bg-surface-2 px-1 font-mono text-[10.5px] text-fg-2">{children}</kbd>
 }
 
 // ---------------------------------------------------------------- modal
@@ -374,7 +302,7 @@ export function toastError(e: unknown) {
 export function Toaster() {
   const items = useToasts((s) => s.items)
   return createPortal(
-    <div className="pointer-events-none fixed bottom-4 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed top-5 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2" aria-live="polite">
       {items.map((t) => (
         <div
           key={t.id}
@@ -408,13 +336,3 @@ export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cx('size-4 animate-spin text-muted', className)} />
 }
 
-export function Empty({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
-  return (
-    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      {icon && <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-surface-2 text-muted [&>svg]:size-5">{icon}</div>}
-      <h3 className="text-[14px] font-semibold">{title}</h3>
-      {children && <p className="mt-1 max-w-sm text-[13px] text-muted">{children}</p>}
-      {action && <div className="mt-4">{action}</div>}
-    </div>
-  )
-}

@@ -43,7 +43,7 @@ export function Home() {
           <button
             aria-label="Configurações"
             onClick={() => setSettingsOpen(true)}
-            className="flex size-8 items-center justify-center rounded-2xl border border-white/70 bg-white/55 text-[11px] font-semibold text-fg backdrop-blur-md backdrop-saturate-[1.8] transition-colors hover:bg-white/80"
+            className="flex size-8 items-center justify-center rounded-2xl border border-white/70 bg-white/55 text-[11px] leading-[14px] font-semibold text-fg backdrop-blur-lg backdrop-saturate-[1.8] transition-colors hover:bg-white/80"
           >
             {initials(userById(userId).name)}
           </button>
@@ -60,8 +60,8 @@ export function Home() {
           {summaries.length > 0 && (
             <section className="flex w-full flex-col gap-5 pt-9">
               <div className="flex items-baseline justify-between px-1">
-                <h2 className="text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-fg">
-                  Seus projetos. <span className="text-faint">Continue de onde parou.</span>
+                <h2 className="flex items-baseline gap-2 text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-fg">
+                  <span>Seus projetos.</span> <span className="text-faint">Continue de onde parou.</span>
                 </h2>
                 {summaries.length > VISIBLE_PROJECTS && (
                   <button onClick={() => setShowAll((v) => !v)} className="text-[15px] leading-[18px] text-link hover:underline">

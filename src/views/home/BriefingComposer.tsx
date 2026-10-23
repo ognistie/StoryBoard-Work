@@ -82,7 +82,7 @@ export function BriefingComposer() {
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
-      <form onSubmit={submit} className="glass flex min-h-[68px] w-full items-end gap-2 rounded-[34px] p-3">
+      <form onSubmit={submit} className="glass flex min-h-[68px] w-full items-end gap-2 rounded-[34px] px-3 py-[11px]">
         <button
           type="button"
           aria-label="Anexar arquivo"

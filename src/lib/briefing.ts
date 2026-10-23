@@ -3,9 +3,8 @@ import { MAX_ATTACHMENT_CHARS, planBriefingResponse, type FORMATS, type planBrie
 import { openaiProvider, post } from './ai/openai'
 import { extractText, fileToImage } from './fileText'
 import { createFrame, createProject, createScene, putImage, saveAsset, saveDoc } from './repo'
+import { drawScene } from './scenes'
 import { userById } from './session'
-import { sketchToBlob } from './sketch'
-import { specFromDescription } from './sketchOps'
 
 export type BriefingFormat = (typeof FORMATS)[number]
 
@@ -63,6 +62,7 @@ export async function createProjectFromBriefing(input: { briefing: string; forma
     style: 'pencil',
     ownerId: input.userId,
     aspect: input.format,
+    durationSeconds: input.durationSeconds,
   })
   await saveDoc(projectId, input.userId, { title: 'Briefing', kind: 'brief', text: briefing, confidential: false })
   if (attachment?.image) {
@@ -75,13 +75,7 @@ export async function createProjectFromBriefing(input: { briefing: string; forma
 
   const sceneId = await createScene(projectId, input.userId, { heading: 'ROTEIRO', sequence: 'Sequência 1', summary: briefing.slice(0, 280) })
   // Drawn locally and committed with the first version, so no candidate waits for approval.
-  const drawings = await Promise.all(
-    plan.scenes.map(async (scene) => {
-      const sketch = specFromDescription(`${scene.description} ${scene.action}`, { shot: scene.shot })
-      const image = await sketchToBlob(sketch)
-      return { sketch, imageId: await putImage(image.blob, image.width, image.height) }
-    }),
-  )
+  const drawings = await Promise.all(plan.scenes.map(drawScene))
   for (const [i, scene] of plan.scenes.entries()) {
     await createFrame(projectId, sceneId, input.userId, { ...scene, ...drawings[i] }, {
       message: 'Cena proposta pelo briefing',

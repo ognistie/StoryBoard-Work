@@ -1,13 +1,12 @@
-import { CameraOverlay } from '../../components/CameraOverlay'
-import { Download, FileDown, Printer, Table } from 'lucide-react'
+import { FileDown, FileText, Printer, Table } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FrameImage } from '../../components/FrameImage'
-import { Button, Menu, MenuItem, toast } from '../../components/ui'
+import { Menu, MenuItem, toast } from '../../components/ui'
 import { MOVE_LABEL, SHOT_LABEL } from '../../lib/context'
 import { db } from '../../lib/db'
 import { useWD } from './context'
-import { AnnotationLayer } from './Viewer'
+import { parseDialogue } from './scene'
 
 function download(name: string, data: Blob) {
   const a = document.createElement('a')
@@ -24,9 +23,23 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/gi, '-')
     .toLowerCase()
 
+/** Exports the scene plan: PDF, Markdown script, CSV shot list, or the whole project as JSON. */
 export function ExportMenu() {
-  const { project, ordered, scenes } = useWD()
+  const { project, ordered, scenes, briefing } = useWD()
   const [printing, setPrinting] = useState(false)
+
+  const markdown = () => {
+    const total = ordered.reduce((sum, f) => sum + f.duration, 0)
+    const lines = [`# ${project.name}`, '', `${ordered.length} cenas · ${total}s · ${project.aspect}`, '']
+    if (briefing) lines.push('## Briefing', '', briefing.text, '')
+    ordered.forEach((f, i) => {
+      const { speaker, line } = parseDialogue(f.dialogue)
+      lines.push(`## Cena ${i + 1} · ${f.title} (${f.duration}s)`, '', `**Plano:** ${SHOT_LABEL[f.shot]} · **Câmera:** ${MOVE_LABEL[f.movement]} · **Formato:** ${f.aspect ?? project.aspect}`, '', f.description, '')
+      if (line) lines.push(`> **${speaker ?? 'Fala'}:** ${line}`, '')
+    })
+    download(`roteiro-${slug(project.name)}.md`, new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }))
+    toast('Roteiro exportado', { tone: 'ok' })
+  }
 
   const shotList = () => {
     const rows = [['#', 'Cena', 'Título', 'Plano', 'Movimento', 'Ângulo', 'Duração (s)', 'Personagens', 'Locação', 'Luz', 'Ação', 'Diálogo', 'Status']]
@@ -63,6 +76,7 @@ export function ExportMenu() {
       assets: await db.assets.where('projectId').equals(project.id).toArray(),
       comments: await db.comments.where('projectId').equals(project.id).toArray(),
       approvals: await db.approvals.where('projectId').equals(project.id).toArray(),
+      notes: await db.notes.where('projectId').equals(project.id).toArray(),
       events: await db.events.where('projectId').equals(project.id).toArray(),
       images: images.filter(Boolean),
     }
@@ -83,15 +97,18 @@ export function ExportMenu() {
       <Menu
         align="right"
         trigger={(toggle) => (
-          <Button variant="ghost" icon={<Download className="size-4" />} onClick={toggle} className="hidden md:inline-flex">
+          <button onClick={toggle} className="flex h-9 items-center rounded-full px-4 text-[14px] leading-[18px] font-medium text-[#18181B] transition-colors hover:bg-black/5">
             Exportar
-          </Button>
+          </button>
         )}
       >
         {(close) => (
           <>
             <MenuItem icon={<Printer />} onClick={() => (close(), print())}>
               PDF do storyboard
+            </MenuItem>
+            <MenuItem icon={<FileText />} onClick={() => (close(), markdown())}>
+              Roteiro (Markdown)
             </MenuItem>
             <MenuItem icon={<Table />} onClick={() => (close(), shotList())}>
               Shot list (CSV)
@@ -107,15 +124,12 @@ export function ExportMenu() {
           <div className="print-root print-only bg-white p-6 text-black">
             <h1 className="text-xl font-semibold">{project.name}</h1>
             <p className="mb-4 text-[12px] text-neutral-600">
-              {project.client} · {project.producer} · {new Date().toLocaleDateString('pt-BR')} · {ordered.length} quadros
+              {project.client} · {project.producer} · {new Date().toLocaleDateString('pt-BR')} · {ordered.length} cenas
             </p>
             <div className="grid grid-cols-3 gap-4">
               {ordered.map((f, i) => (
                 <div key={f.id} className="break-inside-avoid">
-                  <FrameImage imageId={f.imageId} alt="" className="border border-neutral-300">
-                    <CameraOverlay movement={f.movement} />
-                    <AnnotationLayer annotations={f.annotations} />
-                  </FrameImage>
+                  <FrameImage imageId={f.imageId} alt="" aspect={(f.aspect ?? project.aspect).replace(':', ' / ')} className="border border-neutral-300" />
                   <div className="mt-1 text-[11px] font-semibold">
                     {String(i + 1).padStart(2, '0')} · {f.title}
                   </div>

@@ -8,7 +8,7 @@ import type { AIRecord, Frame, FrameContent, Project, Revision, RevisionKind, Sk
 /** Demo workspace so the product can be explored immediately. */
 
 // Bumping this key wipes the browser's data once and reseeds it.
-const SEED_FLAG = 'decupa.seeded.v1'
+const SEED_FLAG = 'decupa.seeded.v2'
 
 const OWNER = 'u_marina'
 const MIN = 60_000
@@ -39,6 +39,8 @@ interface SeedProject {
   /** Briefing versions, oldest first. */
   briefing: string[]
   frames: SeedFrame[]
+  /** Sticky notes on the canvas, in canvas coordinates. */
+  notes?: { text: string; authorId: string; minutesAgo: number; x: number; y: number; rotation: number }[]
 }
 
 const IUGU_BRIEFING_V1 =
@@ -54,6 +56,10 @@ const PROJECTS: SeedProject[] = [
     aspect: '9:16',
     minutesAgo: 12,
     briefing: [IUGU_BRIEFING_V1, IUGU_BRIEFING],
+    notes: [
+      { text: 'Cliente pediu: nenhum número na tela. Só a assinatura no fim.', authorId: OWNER, minutesAgo: 5, x: 612, y: 160, rotation: -2.5 },
+      { text: 'Cena 4 em 1:1 pra reaproveitar no feed.', authorId: 'u_rafael', minutesAgo: 24 * 60, x: 880, y: 150, rotation: 2 },
+    ],
     frames: [
       {
         image: 'iugu-1',
@@ -132,7 +138,8 @@ const PROJECTS: SeedProject[] = [
           movement: 'tracking',
           duration: 7,
           characters: ['Gestora'],
-          notes: 'Formato 1:1. Texto na tela: “foco em estratégia, não em tarefas operacionais”.',
+          aspect: '1:1',
+          notes: 'Texto na tela: “foco em estratégia, não em tarefas operacionais”.',
         },
         history: [
           {
@@ -369,6 +376,11 @@ async function seedProject(seed: SeedProject, now: number) {
     await db.frames.add(frame)
   }
 
+  for (const note of seed.notes ?? []) {
+    const at = now - note.minutesAgo * MIN
+    await db.notes.add({ id: uid('note'), projectId, authorId: note.authorId, text: note.text, x: note.x, y: note.y, rotation: note.rotation, createdAt: at, updatedAt: at })
+  }
+
   await db.events.add({ id: uid('ev'), projectId, actorId: OWNER, type: 'project.created', message: `Projeto “${seed.name}” criado a partir do briefing`, createdAt })
   await db.projects.add({
     id: projectId,
@@ -384,6 +396,7 @@ async function seedProject(seed: SeedProject, now: number) {
       { userId: 'u_rafael', role: 'editor' },
     ],
     aspect: seed.aspect,
+    durationSeconds: seed.frames.reduce((sum, f) => sum + (f.content.duration ?? 0), 0),
     createdAt,
     updatedAt,
   })

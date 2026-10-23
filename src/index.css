@@ -88,6 +88,7 @@
   --color-paper: var(--paper);
   --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-hand: "Caveat", ui-rounded, cursive;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);

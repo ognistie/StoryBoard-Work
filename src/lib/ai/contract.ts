@@ -48,3 +48,40 @@ export const planBriefingResponse = z.object({
   projectName: z.string().describe('Formato "Cliente · Título curto".'),
   scenes: z.array(plannedFrameSchema).min(1).max(MAX_SCENES),
 })
+
+/** The fields of a scene the model may rewrite. */
+export const sceneFieldsSchema = plannedFrameSchema.pick({ title: true, description: true, action: true, dialogue: true, shot: true, movement: true, duration: true })
+
+export const REVISE_FOCUSES = ['all', 'drawing', 'dialogue', 'shorter'] as const
+
+const neighbourSchema = z.object({ title: z.string(), description: z.string(), dialogue: z.string() })
+
+export const reviseSceneRequest = z.object({
+  format: z.string(),
+  briefing: z.string(),
+  scene: sceneFieldsSchema,
+  before: neighbourSchema.optional(),
+  after: neighbourSchema.optional(),
+  instruction: z.string().min(1),
+  focus: z.enum(REVISE_FOCUSES),
+})
+export const reviseSceneResponse = z.object({
+  scene: sceneFieldsSchema,
+  summary: z.string().describe('Uma linha, em PT-BR, dizendo o que mudou.'),
+})
+
+export const applyBriefingRequest = z.object({
+  format: z.string(),
+  oldBriefing: z.string(),
+  newBriefing: z.string().min(1),
+  scenes: z.array(sceneFieldsSchema.extend({ id: z.string() })).min(1),
+})
+export const applyBriefingResponse = z.object({
+  changes: z.array(
+    z.object({
+      id: z.string(),
+      scene: sceneFieldsSchema,
+      reason: z.string().describe('Motivo curto, em PT-BR, ligado ao que mudou no briefing.'),
+    }),
+  ),
+})

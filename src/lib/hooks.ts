@@ -1,7 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from './db'
-import { roleIn, useSession } from './session'
 
 // ---------------------------------------------------------------- image object URLs (ref-counted cache)
 
@@ -54,37 +52,7 @@ export function useImageUrl(imageId?: string): string | undefined {
 
 // ---------------------------------------------------------------- project data
 
-export function useProjectData(projectId: string) {
-  const project = useLiveQuery(() => db.projects.get(projectId), [projectId])
-  const scenes = useLiveQuery(() => db.scenes.where('projectId').equals(projectId).sortBy('order'), [projectId]) ?? []
-  const frames = useLiveQuery(() => db.frames.where('projectId').equals(projectId).sortBy('order'), [projectId]) ?? []
-  const assets = useLiveQuery(() => db.assets.where('projectId').equals(projectId).toArray(), [projectId]) ?? []
-  const comments = useLiveQuery(() => db.comments.where('projectId').equals(projectId).sortBy('createdAt'), [projectId]) ?? []
-  const jobs = useLiveQuery(() => db.jobs.where('projectId').equals(projectId).sortBy('createdAt'), [projectId]) ?? []
-  const proposals = useLiveQuery(() => db.proposals.where('projectId').equals(projectId).toArray(), [projectId]) ?? []
-  return { project, scenes, frames, assets, comments, jobs, proposals, loading: project === undefined }
-}
-
-export function useRole(projectId?: string) {
-  const userId = useSession((s) => s.userId)
-  const project = useLiveQuery(() => (projectId ? db.projects.get(projectId) : undefined), [projectId])
-  return roleIn(project, userId)
-}
-
 // ---------------------------------------------------------------- misc
-
-export function useHotkeys(handler: (e: KeyboardEvent) => void, deps: unknown[]) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
-      handler(e)
-    }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
-}
 
 export function timeAgo(ts: number): string {
   const s = Math.round((Date.now() - ts) / 1000)
@@ -99,15 +67,3 @@ export function timeAgo(ts: number): string {
   return new Date(ts).toLocaleDateString('pt-BR')
 }
 
-export function formatDate(ts: number) {
-  return new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-export function useNow(interval = 30_000) {
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), interval)
-    return () => clearInterval(t)
-  }, [interval])
-  return now
-}
