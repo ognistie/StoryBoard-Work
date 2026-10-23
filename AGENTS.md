@@ -35,7 +35,7 @@ Duas pessoas, cada uma com seu agente, fazem push no mesmo `main`.
 
 ## Publicação
 
-- Vercel: projeto `andre-dezzy/decupa`, no ar em https://decupa-ten.vercel.app. Publique com `vercel deploy --prod`, na conta do André.
+- Vercel: projeto `andre-dezzy/decupa`, no ar em https://decupa-hackathon.vercel.app. Publique com `vercel deploy --prod`, na conta do André.
 - O repositório não está ligado à Vercel: push não publica.
 - Chaves moram nas variáveis da Vercel ou no 1Password, sempre fora do git.
 
