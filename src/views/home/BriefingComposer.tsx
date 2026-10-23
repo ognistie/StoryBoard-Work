@@ -123,7 +123,7 @@ export function BriefingComposer() {
           type="submit"
           aria-label="Criar cenas"
           disabled={busy || !briefing.trim()}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent transition-[background-color,opacity] hover:bg-[#0077ed] disabled:opacity-40"
+          className={cx('flex size-11 shrink-0 items-center justify-center rounded-full bg-accent transition-[background-color,opacity] hover:bg-[#0077ed]', !busy && 'disabled:opacity-40')}
         >
           {busy ? (
             <Spinner className="text-white" />
