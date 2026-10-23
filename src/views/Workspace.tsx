@@ -8,6 +8,8 @@ import { orderedFrames, useWD, WorkspaceCtx, type WorkspaceData } from './worksp
 import { ExportMenu } from './workspace/ExportMenu'
 import { BottomSheet } from './workspace/BottomSheet'
 import { Inspector, InspectorSheetContent } from './workspace/Inspector'
+import { PlayIcon } from './workspace/presentation/icons'
+import { Presentation } from './workspace/presentation/Presentation'
 import { PromptBox } from './workspace/PromptBox'
 import { SceneCanvas, ZoomControl } from './workspace/SceneCanvas'
 import { useWS } from './workspace/store'
@@ -125,12 +127,31 @@ function BackButton() {
   )
 }
 
+/** Opens the presentation of the current versions, from scene 1. */
+function PresentButton({ compact = false, onPresent }: { compact?: boolean; onPresent: () => void }) {
+  const { ordered } = useWD()
+  return (
+    <button
+      aria-label="Apresentar"
+      title="Apresentar"
+      onClick={onPresent}
+      disabled={!ordered.length}
+      className={cx(
+        'flex shrink-0 items-center justify-center rounded-full border border-[#E4E4E7] bg-white shadow-[0_1px_2px_#0000000A] transition-colors hover:bg-[#FAFAFA] disabled:opacity-50',
+        compact ? 'size-8' : 'size-9',
+      )}
+    >
+      <PlayIcon color="#18181B" />
+    </button>
+  )
+}
+
 function Avatar({ initials }: { initials: string }) {
   return <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl bg-[#E4E4E7] text-[11px] leading-[14px] font-semibold text-[#18181B]">{initials}</span>
 }
 
 /** Desktop and tablet header. `compact` (tablet) shrinks Exportar to an icon; if room still runs out, the project name truncates first. */
-function Header({ compact = false }: { compact?: boolean }) {
+function Header({ compact = false, onPresent }: { compact?: boolean; onPresent: () => void }) {
   const { project, me, stats } = useProjectStats()
   return (
     <header className="absolute inset-x-0 top-0 flex h-[72px] items-center justify-between gap-6 px-7">
@@ -148,9 +169,12 @@ function Header({ compact = false }: { compact?: boolean }) {
       <div className="flex shrink-0 items-center gap-6">
         <div className="flex items-center gap-2">
           <ExportMenu iconOnly={compact} />
-          <button onClick={publish} className="flex h-9 items-center rounded-full bg-accent px-5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
-            Publicar
-          </button>
+          <div className="flex items-center gap-2.5">
+            <PresentButton onPresent={onPresent} />
+            <button onClick={publish} className="flex h-9 items-center rounded-full bg-accent px-5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
+              Publicar
+            </button>
+          </div>
         </div>
         <Avatar initials={me} />
       </div>
@@ -159,7 +183,7 @@ function Header({ compact = false }: { compact?: boolean }) {
 }
 
 /** Phone header: the back button replaces "Projetos ›", and the stats go under the name. */
-function MobileHeader() {
+function MobileHeader({ onPresent }: { onPresent: () => void }) {
   const { project, me, stats } = useProjectStats()
   return (
     <header className="absolute inset-x-0 top-0 flex h-14 items-center justify-between gap-2.5 px-4">
@@ -171,6 +195,7 @@ function MobileHeader() {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
+        <PresentButton compact onPresent={onPresent} />
         <button onClick={publish} className="flex h-8 items-center rounded-full bg-accent px-3.5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
           Publicar
         </button>
@@ -204,15 +229,21 @@ const GLASS_PILL = 'glass !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFF
 function WorkspaceLayout() {
   const screen = useScreen()
   useOpenProject()
-  if (screen === 'mobile') return <MobileLayout />
-  if (screen === 'tablet') return <TabletLayout />
-  return <DesktopLayout />
+  // Held here, not in a layout: entering full screen can resize the window into another layout.
+  const [presenting, setPresenting] = useState(false)
+  const present = () => setPresenting(true)
+  return (
+    <>
+      {screen === 'mobile' ? <MobileLayout onPresent={present} /> : screen === 'tablet' ? <TabletLayout onPresent={present} /> : <DesktopLayout onPresent={present} />}
+      {presenting && <Presentation onClose={() => setPresenting(false)} />}
+    </>
+  )
 }
 
-function DesktopLayout() {
+function DesktopLayout({ onPresent }: { onPresent: () => void }) {
   return (
     <div className="relative h-full min-h-[600px] overflow-hidden bg-[#F4F4F5]">
-      <Header />
+      <Header onPresent={onPresent} />
 
       <div className="absolute inset-x-4 top-[72px] bottom-4 overflow-hidden rounded-[20px] border border-[#E4E4E7]">
         <SceneCanvas />
@@ -240,12 +271,12 @@ function DesktopLayout() {
 const TABLET_SHEET = 340
 
 /** Tablet: the inspector becomes a bottom sheet; zoom and the note button sit in a row above the prompt box. */
-function TabletLayout() {
+function TabletLayout({ onPresent }: { onPresent: () => void }) {
   // Not in the design: tapping the grabber expands the sheet to read long histories, and hides the prompt box meanwhile.
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="relative h-full min-h-[600px] overflow-hidden bg-[#F4F4F5]">
-      <Header compact />
+      <Header compact onPresent={onPresent} />
 
       <div className="absolute inset-x-4 top-[72px] bottom-4 overflow-hidden rounded-[20px] border border-[#E4E4E7]">
         <SceneCanvas />
@@ -279,7 +310,7 @@ function useVersionLabel() {
 }
 
 /** Phone: full-width canvas, a dock at the bottom, and the versions in a sheet that opens on demand. */
-function MobileLayout() {
+function MobileLayout({ onPresent }: { onPresent: () => void }) {
   const addNote = useAddNote()
   const version = useVersionLabel()
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -298,7 +329,7 @@ function MobileLayout() {
 
   return (
     <div className="relative h-full overflow-hidden bg-[#F4F4F5]">
-      <MobileHeader />
+      <MobileHeader onPresent={onPresent} />
 
       <div className="absolute inset-x-0 top-14 bottom-0 overflow-hidden rounded-t-[20px] border-t border-[#E4E4E7]">
         <SceneCanvas />

@@ -121,6 +121,18 @@ button:disabled {
   }
 }
 
+/* Scene change in the presentation: fades in when mounted and on every opacity change. */
+.scene-fade {
+  transition: opacity 400ms ease;
+}
+@starting-style {
+  .scene-fade { opacity: 0; }
+}
+/* Reduced motion stops the camera motion in the presentation, but keeps this fade. */
+@media (prefers-reduced-motion: reduce) {
+  .scene-fade { transition-duration: 400ms !important; }
+}
+
 /* ---------- Print / export ---------- */
 .print-only { display: none; }
 @media print {
