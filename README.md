@@ -7,10 +7,10 @@ O diferencial é a **edição conversacional e incremental**: o usuário selecio
 ## Rodando
 
 ```bash
-npm install
-npm run dev        # http://localhost:5173
-npm test           # 27 testes (Vitest)
-npm run build      # build de produção em dist/
+bun install
+bun run dev        # http://localhost:5173
+bun run test       # testes (Vitest). `bun test` roda outro testador e ignora o Vitest.
+bun run build      # build de produção em dist/
 ```
 
 > Se o `registry.npmjs.org` estiver bloqueado na sua rede, o `.npmrc` do projeto já aponta para o espelho oficial `registry.yarnpkg.com`.
