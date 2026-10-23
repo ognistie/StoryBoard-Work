@@ -9,7 +9,7 @@ import type { AIProvider } from './types'
  * the same one the demo mode uses.
  */
 
-async function post<Response extends z.ZodType>(task: string, body: unknown, response: Response, signal: AbortSignal): Promise<z.infer<Response>> {
+export async function post<Response extends z.ZodType>(task: string, body: unknown, response: Response, signal: AbortSignal): Promise<z.infer<Response>> {
   const res = await fetch(`/api/${task}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal })
   const json = (await res.json().catch(() => ({}))) as { error?: string }
   if (!res.ok) throw new Error(json.error ?? `A IA respondeu HTTP ${res.status}`)

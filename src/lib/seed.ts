@@ -1,554 +1,415 @@
-import { chunkText, parseScript } from './context'
+import { chunkText } from './context'
 import { db } from './db'
 import { shortHash, uid } from './ids'
-import { emptyContent } from './repo'
+import { emptyContent, putImage } from './repo'
 import { sketchToBlob } from './sketch'
-import type { Asset, ContextDoc, DocKind, Frame, FrameContent, Project, Revision, SketchSpec } from './types'
+import type { AIRecord, Frame, FrameContent, Project, Revision, RevisionKind, SketchSpec } from './types'
 
 /** Demo workspace so the product can be explored immediately. */
 
-const SEED_FLAG = 'frameline.seeded.v1'
+// Bumping this key wipes the browser's data once and reseeds it.
+const SEED_FLAG = 'decupa.seeded.v1'
 
-export const DEMO_SCRIPT = `COMERCIAL “CASA NOVA” — HORIZONTE IMÓVEIS (30”)
+const OWNER = 'u_marina'
+const MIN = 60_000
+const DAY = 86_400_000
 
-1. EXT. CASA NOVA — DIA
-
-Uma rua tranquila de bairro. O carro da família estaciona em frente a uma casa branca com uma placa de vendido.
-
-ANA (35) desce do carro, segurando as chaves. PEDRO (38) abre o porta-malas cheio de caixas.
-
-LÉO (8) corre em direção à porta.
-
-LÉO
-É essa? É a nossa casa?
-
-ANA
-É a nossa casa.
-
-Ana gira a chave na fechadura. A porta se abre.
-
-2. INT. SALA DE ESTAR — DIA
-
-A sala vazia, banhada de luz. Caixas de mudança pelo chão.
-
-Pedro coloca a última caixa no chão e olha em volta.
-
-PEDRO
-Cabe tudo. Cabe a gente.
-
-Léo se joga no único sofá já montado. Ana ri.
-
-3. EXT. QUINTAL — PÔR DO SOL
-
-A família no quintal, sob uma árvore. O céu alaranjado. Ana, Pedro e Léo sentados na grama. O cachorro Bidu corre até eles.
-
-LOCUTOR (V.O.)
-Horizonte Imóveis. O lugar onde a sua história começa.
-`
-
-const RULES = `# Regras de continuidade
-- Ana sempre veste o casaco amarelo da marca nas cenas externas.
-- Léo sempre usa o boné vermelho.
-- A placa de vendido deve aparecer no primeiro quadro.
-- Nunca mostrar casas vizinhas com placa de outra imobiliária.
-
-# Identidade visual
-- Luz natural quente, sem sombras duras.
-- A campanha nunca deve mostrar a casa à noite: o conceito é luminosidade e acolhimento.
-- Enquadramentos respiram: preferir planos abertos e médios.`
-
-const BRIEF = `# Briefing — Horizonte Imóveis
-Objetivo: lançar a campanha “Casa Nova”, reforçando a Horizonte como a imobiliária que acompanha famílias no começo de uma nova fase.
-
-# Público
-Famílias jovens, 28–40 anos, comprando o primeiro imóvel.
-
-# Tom
-Caloroso, otimista, cotidiano. Nada de luxo ostensivo.
-
-# Entregáveis
-Filme de 30” para TV e redes sociais, com cortes de 15” e 6”.`
-
-const INTERNAL = `# Notas internas da produtora (confidencial)
-Orçamento de pós-produção aprovado: R$ 48 mil.
-O cliente costuma pedir alterações de última hora: priorizar a aprovação dos quadros da cena 1 até sexta.
-Diária extra de locação ainda não negociada.`
-
-const DAY = 86400_000
-
-interface SeedFrame {
-  scene: number
-  c: Partial<FrameContent>
-  sketch: SketchSpec
-  status?: Frame['status']
-  history?: { sketch: SketchSpec; message: string; author: string; daysAgo: number; description?: string }[]
+interface SeedVersion {
+  kind: RevisionKind
+  message: string
+  minutesAgo: number
+  /** Fields that differed in this version, compared with the current frame. */
+  patch?: Partial<FrameContent>
 }
 
-const p = (x: number, name?: string, extra: Partial<SketchSpec['people'][number]> = {}) => ({
-  x,
-  name,
-  kind: name === 'Léo' ? ('child' as const) : ('adult' as const),
-  pose: 'stand' as const,
-  facing: x > 0.5 ? ('left' as const) : ('right' as const),
-  ...extra,
-})
+interface SeedFrame {
+  content: Partial<FrameContent>
+  /** File in public/demo/, or a spec for the local sketch renderer. */
+  image: string | SketchSpec
+  /** Earlier versions, oldest first. The current frame becomes the last one. */
+  history?: SeedVersion[]
+  head?: Omit<SeedVersion, 'patch'>
+}
 
-const FRAMES: SeedFrame[] = [
+interface SeedProject {
+  name: string
+  client: string
+  aspect: Project['aspect']
+  minutesAgo: number
+  /** Briefing versions, oldest first. */
+  briefing: string[]
+  frames: SeedFrame[]
+}
+
+const IUGU_BRIEFING_V1 =
+  'Reels de 30s para a iugu recontando o manifesto “tecnologia que vira potência”. Para empresas que querem automatizar a gestão financeira. Tom confiante, sem números. Fechar com a assinatura.'
+const IUGU_BRIEFING =
+  'Reels de 30s para a iugu recontando o manifesto “tecnologia que vira potência”. Para gestores financeiros que perdem energia com conciliação e cobrança manual. Tom confiante, sem números. Fechar com a assinatura.'
+const BRIEFING_CHANGE = 'Novo foco: gestores financeiros sem tempo.'
+
+const PROJECTS: SeedProject[] = [
   {
-    scene: 1,
-    status: 'approved',
-    c: {
-      title: 'Chegada à casa nova',
-      description: 'Plano geral da casa branca com placa de vendido. O carro da família estaciona em frente. Luz natural de manhã.',
-      action: 'O carro da família estaciona em frente à casa.',
-      shot: 'geral',
-      movement: 'dolly',
-      duration: 4,
-      characters: [],
-      location: 'Casa Nova — fachada',
-      lighting: 'Natural, manhã',
-      composition: 'Casa centralizada, carro no terço esquerdo.',
-    },
-    sketch: { setting: 'house', time: 'day', shot: 'geral', people: [], props: ['carro', 'placa'], seed: 11 },
-  },
-  {
-    scene: 1,
-    status: 'review',
-    c: {
-      title: 'Ana com as chaves',
-      description: 'Plano americano de Ana ao lado do carro, segurando as chaves e olhando para a casa.',
-      action: 'Ana desce do carro, segurando as chaves.',
-      shot: 'americano',
-      duration: 3,
-      characters: ['Ana'],
-      location: 'Casa Nova — calçada',
-      lighting: 'Natural, manhã',
-    },
-    sketch: { setting: 'house', time: 'day', shot: 'americano', people: [p(0.42, 'Ana')], props: [], seed: 22 },
-    history: [
+    name: 'iugu · Energia que vira potência',
+    client: 'iugu',
+    aspect: '9:16',
+    minutesAgo: 12,
+    briefing: [IUGU_BRIEFING_V1, IUGU_BRIEFING],
+    frames: [
       {
-        sketch: { setting: 'house', time: 'day', shot: 'aberto', people: [p(0.42, 'Ana')], props: [], seed: 22 },
-        message: 'Storyboard inicial',
-        author: 'u_rafael',
-        daysAgo: 3,
-        description: 'Plano aberto de Ana ao lado do carro, segurando as chaves.',
+        image: 'iugu-1',
+        content: {
+          title: 'A fórmula',
+          description: 'Mão escreve a fórmula; o traço vira uma pílula azul.',
+          action: 'Mão escreve a fórmula de potência em papel branco. O traço vira uma pílula azul. Logo preto pequeno no canto desde o primeiro quadro.',
+          dialogue: 'LOCUÇÃO: Potência é energia a cada unidade de tempo.',
+          shot: 'detalhe',
+          movement: 'dolly',
+          duration: 4,
+          notes: 'Push-in lento. Texto na tela: “potência = energia ÷ tempo”.',
+        },
+      },
+      {
+        image: 'iugu-2',
+        content: {
+          title: 'Energia escoa',
+          description: 'Gestora entre planilhas, do dia até a noite.',
+          action: 'Gestora financeira à mesa, entre planilhas; a luz da janela passa de dia para noite. Três pílulas surgem em volta dela.',
+          dialogue: 'LOCUÇÃO: Sua energia se consome devagar.',
+          shot: 'medio',
+          movement: 'estatico',
+          duration: 7,
+          characters: ['Gestora'],
+          notes: 'Time-lapse. Pílulas: “CONCILIAÇÃO que consome tempo”, “COBRANÇA que escapa”, “FLUXO que perde previsibilidade”.',
+        },
+        history: [
+          {
+            kind: 'initial',
+            message: 'Primeira versão, gerada do briefing.',
+            minutesAgo: 12,
+            patch: { description: 'Empresário confere boletos no fim do expediente.', dialogue: 'LOCUÇÃO: Processos manuais roubam seu tempo.', duration: 6 },
+          },
+          { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2, patch: { notes: '' } },
+        ],
+        head: { kind: 'ai-edit', message: '“Time-lapse do dia até a noite.”', minutesAgo: 2 },
+      },
+      {
+        image: 'iugu-3',
+        content: {
+          title: 'Encaixe',
+          description: 'Pílulas viram blocos azuis e se encaixam.',
+          action: 'As pílulas se soltam, viram blocos arredondados e se encaixam num mosaico com quatro blocos azuis: Cobrança, Recorrência, Split, BaaS.',
+          dialogue: 'LOCUÇÃO: Quatro produtos. Um ecossistema.',
+          shot: 'geral',
+          movement: 'zoom',
+          duration: 6,
+          notes: 'Motion graphics. Som de clique seco em cada encaixe.',
+        },
+        history: [
+          {
+            kind: 'initial',
+            message: 'Primeira versão, gerada do briefing.',
+            minutesAgo: 12,
+            patch: { dialogue: 'LOCUÇÃO: Automatize sua gestão financeira.', movement: 'estatico', duration: 8, notes: 'Motion graphics.' },
+          },
+          {
+            kind: 'ai-edit',
+            message: '“Corta para 6 segundos. Zoom out no final.”',
+            minutesAgo: 9,
+            patch: { dialogue: 'LOCUÇÃO: Automatize sua gestão financeira.', notes: 'Motion graphics.' },
+          },
+          { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2, patch: { notes: 'Motion graphics.' } },
+        ],
+        head: { kind: 'ai-edit', message: '“Deixa o encaixe mais seco, com som de clique.”', minutesAgo: 1 },
+      },
+      {
+        image: 'iugu-4',
+        content: {
+          title: 'Energia volta',
+          description: 'De manhã, ela leva o time para a estratégia.',
+          action: 'A mesma gestora, de manhã e com luz natural, entra numa sala clara e conduz o time diante de um quadro de planejamento.',
+          dialogue: 'LOCUÇÃO: Isso é transformar energia em potência.',
+          shot: 'aberto',
+          movement: 'tracking',
+          duration: 7,
+          characters: ['Gestora'],
+          notes: 'Formato 1:1. Texto na tela: “foco em estratégia, não em tarefas operacionais”.',
+        },
+        history: [
+          {
+            kind: 'initial',
+            message: 'Primeira versão, gerada do briefing.',
+            minutesAgo: 12,
+            patch: { description: 'A equipe comemora em volta da mesa.', dialogue: 'LOCUÇÃO: Mais tempo para o que importa.', characters: [] },
+          },
+        ],
+        head: { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2 },
+      },
+      {
+        image: 'iugu-5',
+        content: {
+          title: 'Assinatura',
+          description: 'Blocos formam o símbolo e o botão de contato.',
+          action: 'Os blocos do mosaico se juntam e formam o símbolo da iugu; entra a assinatura preta e, abaixo, uma pílula azul de CTA.',
+          dialogue: 'LOCUÇÃO: iugu. Tecnologia que vira potência.',
+          shot: 'geral',
+          movement: 'estatico',
+          duration: 6,
+          notes: 'CTA: “Falar com um especialista”.',
+        },
       },
     ],
   },
   {
-    scene: 1,
-    status: 'review',
-    c: {
-      title: 'Família diante da casa',
-      description: 'Plano aberto: Ana, Pedro e Léo diante da casa. Pedro segura caixas de mudança.',
-      action: 'Pedro abre o porta-malas cheio de caixas.',
-      shot: 'aberto',
-      duration: 3,
-      characters: ['Ana', 'Pedro', 'Léo'],
-      location: 'Casa Nova — calçada',
-      lighting: 'Natural, manhã',
-    },
-    sketch: { setting: 'house', time: 'day', shot: 'aberto', people: [p(0.3, 'Pedro'), p(0.45, 'Ana'), p(0.58, 'Léo')], props: ['caixas'], seed: 33 },
+    name: 'Café Moinho · Tutorial',
+    client: 'Café Moinho',
+    aspect: '9:16',
+    minutesAgo: 24 * 60,
+    briefing: [
+      'Tutorial de 60s para o Café Moinho ensinando a moer e coar café em casa. Público: quem está começando no café especial. Tom calmo e próximo. Fechar com o pacote da marca.',
+    ],
+    frames: [
+      {
+        image: 'cafe-1',
+        content: {
+          title: 'A moagem',
+          description: 'Mãos giram o moedor manual; grãos espalhados na mesa.',
+          action: 'Mãos giram a manivela do moedor manual sobre a mesa de madeira.',
+          dialogue: 'NARRAÇÃO: Tudo começa no grão. Moa na hora, em moagem média.',
+          shot: 'detalhe',
+          movement: 'estatico',
+          duration: 10,
+        },
+      },
+      {
+        image: 'cafe-2',
+        content: {
+          title: 'A água',
+          description: 'A chaleira de bico fino despeja água sobre o coador.',
+          action: 'Água quente cai em círculos sobre o pó no coador de cerâmica.',
+          dialogue: 'NARRAÇÃO: Água a 92 graus, em círculos, sem pressa.',
+          shot: 'medio',
+          movement: 'tilt',
+          duration: 12,
+        },
+      },
+      {
+        image: 'cafe-3',
+        content: {
+          title: 'A xícara',
+          description: 'Xícara servida ao lado do pacote Café Moinho.',
+          action: 'A xícara cheia descansa ao lado do pacote, perto da janela.',
+          dialogue: 'NARRAÇÃO: Pronto. Agora é só aproveitar.',
+          shot: 'detalhe',
+          movement: 'dolly',
+          duration: 10,
+        },
+      },
+      {
+        image: { setting: 'kitchen', time: 'day', shot: 'close', people: [{ x: 0.5, name: 'Barista', kind: 'adult', pose: 'stand', facing: 'left', hair: 'bun' }], props: [], seed: 41 },
+        content: {
+          title: 'O tempo de extração',
+          description: 'A barista confere o relógio enquanto o café passa.',
+          dialogue: 'NARRAÇÃO: Três minutos. Se passar disso, o café amarga.',
+          shot: 'close',
+          movement: 'estatico',
+          duration: 10,
+          characters: ['Barista'],
+        },
+      },
+      {
+        image: { setting: 'kitchen', time: 'day', shot: 'medio', people: [{ x: 0.42, name: 'Barista', kind: 'adult', pose: 'sit', facing: 'right', hair: 'bun', expression: 'smile' }], props: [], seed: 52 },
+        content: {
+          title: 'O primeiro gole',
+          description: 'A barista prova o café e sorri.',
+          dialogue: 'NARRAÇÃO: Doce, com notas de chocolate.',
+          shot: 'medio',
+          movement: 'pan',
+          duration: 10,
+          characters: ['Barista'],
+        },
+      },
+      {
+        image: { setting: 'empty', time: 'day', shot: 'detalhe', people: [], props: [], seed: 63 },
+        content: {
+          title: 'Assinatura',
+          description: 'O pacote Café Moinho no centro do quadro, com o site da marca.',
+          dialogue: 'NARRAÇÃO: Café Moinho. Moído do seu jeito.',
+          shot: 'detalhe',
+          movement: 'estatico',
+          duration: 8,
+        },
+      },
+    ],
   },
   {
-    scene: 1,
-    status: 'draft',
-    c: {
-      title: 'Léo corre até a porta',
-      description: 'Plano aberto de Léo correndo em direção à porta; Ana e Pedro ao fundo, à esquerda.',
-      action: 'Léo corre em direção à porta.',
-      dialogue: 'LÉO: É essa? É a nossa casa?\nANA: É a nossa casa.',
-      shot: 'aberto',
-      movement: 'tracking',
-      duration: 3,
-      characters: ['Léo', 'Ana', 'Pedro'],
-      location: 'Casa Nova — entrada',
-      lighting: 'Natural, manhã',
-    },
-    sketch: { setting: 'house', time: 'day', shot: 'aberto', people: [p(0.2, 'Pedro'), p(0.3, 'Ana'), p(0.55, 'Léo', { pose: 'walk', facing: 'right' })], props: [], seed: 44 },
-  },
-  {
-    scene: 2,
-    status: 'approved',
-    c: {
-      title: 'Sala vazia',
-      description: 'Plano geral da sala vazia, banhada de luz, com caixas de mudança pelo chão.',
-      shot: 'geral',
-      movement: 'pan',
-      duration: 3,
-      location: 'Sala de estar',
-      lighting: 'Luz de janela, difusa',
-    },
-    sketch: { setting: 'living', time: 'day', shot: 'geral', people: [], props: ['caixas'], seed: 55 },
-  },
-  {
-    scene: 2,
-    status: 'approved',
-    c: {
-      title: 'Pedro e a última caixa',
-      description: 'Plano médio de Pedro colocando a última caixa no chão e olhando em volta.',
-      action: 'Pedro coloca a última caixa no chão.',
-      dialogue: 'PEDRO: Cabe tudo. Cabe a gente.',
-      shot: 'medio',
-      duration: 3,
-      characters: ['Pedro'],
-      location: 'Sala de estar',
-      lighting: 'Luz de janela, difusa',
-    },
-    sketch: { setting: 'living', time: 'day', shot: 'medio', people: [p(0.5, 'Pedro')], props: [], seed: 66 },
-  },
-  {
-    scene: 2,
-    status: 'draft',
-    c: {
-      title: 'Léo no sofá',
-      description: 'Plano aberto: Léo se joga no sofá; Ana, à direita, ri.',
-      action: 'Léo se joga no único sofá já montado. Ana ri.',
-      shot: 'aberto',
-      duration: 3,
-      characters: ['Léo', 'Ana'],
-      location: 'Sala de estar',
-      lighting: 'Luz de janela, difusa',
-    },
-    sketch: { setting: 'living', time: 'day', shot: 'aberto', people: [p(0.28, 'Léo', { pose: 'sit', expression: 'laugh' }), p(0.66, 'Ana', { expression: 'laugh' })], props: [], seed: 77 },
-  },
-  {
-    scene: 3,
-    status: 'draft',
-    c: {
-      title: 'Quintal ao pôr do sol',
-      description: 'Plano geral da família sentada na grama sob a árvore; o cachorro Bidu corre até eles. Céu alaranjado.',
-      action: 'Ana, Pedro e Léo sentados na grama. Bidu corre até eles.',
-      shot: 'geral',
-      movement: 'crane',
-      duration: 4,
-      characters: ['Ana', 'Pedro', 'Léo'],
-      location: 'Quintal',
-      lighting: 'Pôr do sol, contraluz quente',
-    },
-    sketch: {
-      setting: 'garden',
-      time: 'sunset',
-      shot: 'geral',
-      people: [p(0.42, 'Ana', { pose: 'sit' }), p(0.52, 'Pedro', { pose: 'sit' }), p(0.34, 'Léo', { pose: 'sit' })],
-      props: ['cachorro'],
-      seed: 88,
-    },
-  },
-  {
-    scene: 3,
-    status: 'draft',
-    c: {
-      title: 'Assinatura',
-      description: 'Plano detalhe das chaves da casa nova; entra a assinatura da Horizonte Imóveis.',
-      dialogue: 'LOCUTOR (V.O.): Horizonte Imóveis. O lugar onde a sua história começa.',
-      shot: 'detalhe',
-      duration: 3,
-      location: 'Quintal',
-      lighting: 'Pôr do sol',
-      notes: 'Logo animado entra no último segundo.',
-    },
-    sketch: { setting: 'empty', time: 'sunset', shot: 'detalhe', people: [], props: ['chaves'], seed: 99 },
+    name: 'Studio Vila · Anúncio',
+    client: 'Studio Vila',
+    aspect: '9:16',
+    minutesAgo: 3 * 24 * 60,
+    briefing: [
+      'Anúncio de 15s para o Studio Vila, estúdio de pilates de bairro. Mostrar o cuidado da professora com cada aluna. Tom leve. Fechar com a fachada e o convite para a aula experimental.',
+    ],
+    frames: [
+      {
+        image: 'studio-1',
+        content: {
+          title: 'O estúdio',
+          description: 'Sala clara com aparelhos de pilates; uma aluna alonga no reformer.',
+          dialogue: 'NARRAÇÃO: Um espaço para o seu corpo.',
+          shot: 'geral',
+          movement: 'pan',
+          duration: 5,
+        },
+      },
+      {
+        image: 'studio-2',
+        content: {
+          title: 'O cuidado',
+          description: 'A professora ajusta a postura da aluna no tapete.',
+          dialogue: 'NARRAÇÃO: Com atenção em cada movimento.',
+          shot: 'medio',
+          movement: 'dolly',
+          duration: 5,
+          characters: ['Professora', 'Aluna'],
+        },
+      },
+      {
+        image: 'studio-3',
+        content: {
+          title: 'A fachada',
+          description: 'Fachada do Studio Vila, com bicicleta na calçada.',
+          dialogue: 'NARRAÇÃO: Studio Vila. Sua primeira aula é por nossa conta.',
+          shot: 'aberto',
+          movement: 'estatico',
+          duration: 5,
+        },
+      },
+    ],
   },
 ]
 
-async function img(spec: SketchSpec) {
-  const { blob, width, height } = await sketchToBlob(spec)
-  const id = uid('img')
-  await db.images.add({ id, blob, width, height, createdAt: Date.now() })
-  return id
+async function loadImage(image: SeedFrame['image']) {
+  if (typeof image !== 'string') {
+    const { blob, width, height } = await sketchToBlob(image)
+    return putImage(blob, width, height)
+  }
+  const res = await fetch(`/demo/${image}.webp`)
+  if (!res.ok) throw new Error(`Imagem de demonstração não encontrada: ${image}`)
+  const blob = await res.blob()
+  const { width, height } = await createImageBitmap(blob)
+  return putImage(blob, width, height)
 }
 
-function makeDoc(projectId: string, kind: DocKind, title: string, text: string, confidential: boolean, at: number, fileName?: string): ContextDoc {
-  return { id: uid('doc'), projectId, kind, title, fileName, version: 1, text, chunks: chunkText(text, kind), confidential, createdAt: at, updatedAt: at, updatedBy: 'u_marina' }
+function aiRecord(instruction: string, basePrompt: string): AIRecord {
+  return { instruction, basePrompt, structuredPrompt: instruction, provider: 'OpenAI', model: 'gpt-6.1-sol', isDemo: false, contextRefs: [] }
+}
+
+async function seedProject(seed: SeedProject, now: number) {
+  const projectId = uid('prj')
+  const updatedAt = now - seed.minutesAgo * MIN
+  const createdAt = updatedAt - 2 * DAY
+  const sceneId = uid('scn')
+  await db.scenes.add({ id: sceneId, projectId, number: 1, heading: 'Roteiro', sequence: '', summary: '', timeOfDay: 'day', characters: [], scriptExcerpt: '', order: 0 })
+
+  const docId = uid('doc')
+  const briefing = seed.briefing[seed.briefing.length - 1]
+  await db.docs.add({
+    id: docId,
+    projectId,
+    kind: 'brief',
+    title: 'Briefing',
+    version: seed.briefing.length,
+    text: briefing,
+    chunks: chunkText(briefing, 'brief'),
+    confidential: false,
+    createdAt,
+    updatedAt,
+    updatedBy: OWNER,
+  })
+  await db.docVersions.bulkAdd(seed.briefing.map((text, i) => ({ id: uid('dv'), docId, version: i + 1, text, createdAt: i ? updatedAt : createdAt, authorId: OWNER })))
+
+  for (const [order, sf] of seed.frames.entries()) {
+    const frameId = uid('frm')
+    const imageId = await loadImage(sf.image)
+    const sketch = typeof sf.image === 'string' ? undefined : sf.image
+    const content: FrameContent = { ...emptyContent(sf.content), imageId, sketch }
+    const versions: SeedVersion[] = [...(sf.history ?? []), sf.head ?? { kind: 'initial', message: 'Primeira versão, gerada do briefing.', minutesAgo: seed.minutesAgo }]
+    const revs: Revision[] = []
+    for (const [i, v] of versions.entries()) {
+      const snapshot = { ...content, ...v.patch }
+      revs.push({
+        id: uid('rev'),
+        short: shortHash(),
+        projectId,
+        frameId,
+        parentId: revs[i - 1]?.id,
+        number: i + 1,
+        authorId: OWNER,
+        createdAt: now - v.minutesAgo * MIN,
+        message: v.message,
+        kind: v.kind,
+        snapshot,
+        ai: v.kind === 'initial' || v.kind === 'manual' ? undefined : aiRecord(v.message, revs[i - 1]?.snapshot.description ?? snapshot.description),
+      })
+    }
+    await db.revisions.bulkAdd(revs)
+    const head = revs[revs.length - 1]
+    const frame: Frame = {
+      ...content,
+      id: frameId,
+      projectId,
+      sceneId,
+      order,
+      status: 'draft',
+      headRevisionId: head.id,
+      dirty: false,
+      updatedAt: head.createdAt,
+      updatedBy: OWNER,
+    }
+    await db.frames.add(frame)
+  }
+
+  await db.events.add({ id: uid('ev'), projectId, actorId: OWNER, type: 'project.created', message: `Projeto “${seed.name}” criado a partir do briefing`, createdAt })
+  await db.projects.add({
+    id: projectId,
+    name: seed.name,
+    client: seed.client,
+    producer: 'Lumen Filmes',
+    ownerId: OWNER,
+    status: 'pre',
+    style: 'pencil',
+    styleNotes: '',
+    members: [
+      { userId: OWNER, role: 'producer' },
+      { userId: 'u_rafael', role: 'editor' },
+    ],
+    aspect: seed.aspect,
+    createdAt,
+    updatedAt,
+  })
 }
 
 let seeding: Promise<void> | null = null
 
 /** Idempotent (guards against React StrictMode double effects). */
-export function seedDemo(force = false): Promise<void> {
-  seeding ??= doSeed(force).finally(() => {
+export function seedDemo(): Promise<void> {
+  seeding ??= doSeed().finally(() => {
     seeding = null
   })
   return seeding
 }
 
-async function doSeed(force: boolean) {
-  try {
-    if (!force && localStorage.getItem(SEED_FLAG)) return
-  } catch {
-    /* ignore */
-  }
-  if (!force && (await db.projects.count()) > 0) return
+async function doSeed() {
+  if (localStorage.getItem(SEED_FLAG)) return
+  // Clears data from earlier demos (and earlier seed versions) before reseeding.
+  await Promise.all(db.tables.map((t) => t.clear()))
   const now = Date.now()
-  const projectId = uid('prj')
-  const project: Project = {
-    id: projectId,
-    name: 'Casa Nova — Filme 30”',
-    client: 'Horizonte Imóveis',
-    producer: 'Lumen Filmes',
-    ownerId: 'u_marina',
-    status: 'review',
-    style: 'pencil',
-    styleNotes: 'Traço limpo, personagens identificados por nome acima da cabeça.',
-    members: [
-      { userId: 'u_marina', role: 'producer' },
-      { userId: 'u_rafael', role: 'editor' },
-      { userId: 'u_julia', role: 'client' },
-    ],
-    aspect: '16:9',
-    createdAt: now - 6 * DAY,
-    updatedAt: now - 2 * 3600_000,
-  }
-
-  const parsed = parseScript(DEMO_SCRIPT)
-  const sceneIds: string[] = []
-  for (const s of parsed) {
-    const id = uid('scn')
-    sceneIds.push(id)
-    await db.scenes.add({
-      id,
-      projectId,
-      number: s.number,
-      heading: s.heading,
-      sequence: s.number === 1 ? 'Sequência 1 — Chegada' : s.number === 2 ? 'Sequência 2 — Primeiro dia' : 'Sequência 3 — Lar',
-      summary: s.summary,
-      timeOfDay: s.timeOfDay,
-      characters: s.characters.filter((c) => c !== 'Locutor'),
-      scriptExcerpt: s.excerpt,
-      order: s.number - 1,
-    })
-  }
-
-  const assets: Asset[] = [
-    { id: uid('ast'), projectId, type: 'character', name: 'Ana', description: 'Mulher, 35 anos, cabelo cacheado na altura dos ombros, casaco amarelo da marca.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'character', name: 'Pedro', description: 'Homem, 38 anos, barba curta, camisa xadrez azul.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'character', name: 'Léo', description: 'Menino, 8 anos, boné vermelho, mochila.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'character', name: 'Bia', description: 'Corretora da Horizonte, 30 anos, blazer verde, crachá da marca.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'location', name: 'Casa Nova', description: 'Casa branca térrea, telhado de duas águas, porta de madeira, jardim frontal.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'lighting', name: 'Luz Horizonte', description: 'Luz natural quente, sem sombras duras, céu limpo.', createdAt: now },
-    { id: uid('ast'), projectId, type: 'prop', name: 'Bidu', description: 'Cachorro vira-lata caramelo, porte médio.', createdAt: now },
-  ]
-  for (const a of assets.filter((a) => a.type === 'character')) {
-    a.imageId = await img({ setting: 'empty', time: 'day', shot: 'americano', people: [p(0.5, a.name, a.name === 'Léo' ? { kind: 'child' } : {})], props: [], seed: a.name.length * 13 })
-  }
-  await db.assets.bulkAdd(assets)
-
-  await db.docs.bulkAdd([
-    makeDoc(projectId, 'script', 'Roteiro — Casa Nova 30”', DEMO_SCRIPT, false, now - 6 * DAY, 'roteiro_casa_nova_v1.txt'),
-    makeDoc(projectId, 'brief', 'Briefing do cliente', BRIEF, false, now - 6 * DAY, 'briefing_horizonte.md'),
-    makeDoc(projectId, 'tech', 'Regras de continuidade e marca', RULES, false, now - 5 * DAY, 'continuidade.md'),
-    makeDoc(projectId, 'other', 'Notas internas da produtora', INTERNAL, true, now - 5 * DAY, 'notas_internas.md'),
-  ])
-
-  let order = 0
-  const frameIds: string[] = []
-  for (const sf of FRAMES) {
-    const frameId = uid('frm')
-    frameIds.push(frameId)
-    const revs: Revision[] = []
-    let parent: string | undefined
-    let n = 0
-    for (const h of sf.history ?? []) {
-      const imageId = await img(h.sketch)
-      const r: Revision = {
-        id: uid('rev'),
-        short: shortHash(),
-        projectId,
-        frameId,
-        parentId: parent,
-        number: ++n,
-        authorId: h.author,
-        createdAt: now - h.daysAgo * DAY,
-        message: h.message,
-        kind: 'initial',
-        snapshot: { ...emptyContent(sf.c), description: h.description ?? sf.c.description ?? '', imageId, sketch: h.sketch },
-      }
-      revs.push(r)
-      parent = r.id
-    }
-    const imageId = await img(sf.sketch)
-    const content = { ...emptyContent(sf.c), imageId, sketch: sf.sketch }
-    const head: Revision = {
-      id: uid('rev'),
-      short: shortHash(),
-      projectId,
-      frameId,
-      parentId: parent,
-      number: ++n,
-      authorId: n > 1 ? 'u_marina' : 'u_rafael',
-      createdAt: now - (n > 1 ? 1 : 3) * DAY,
-      message: n > 1 ? 'Plano fechado para americano, foco nas chaves' : 'Storyboard inicial',
-      kind: n > 1 ? 'manual' : 'initial',
-      snapshot: content,
-    }
-    revs.push(head)
-    await db.revisions.bulkAdd(revs)
-    const frame: Frame = {
-      ...content,
-      id: frameId,
-      projectId,
-      sceneId: sceneIds[sf.scene - 1],
-      order: order++,
-      status: sf.status ?? 'draft',
-      headRevisionId: head.id,
-      approvedRevisionId: sf.status === 'approved' ? head.id : undefined,
-      dirty: false,
-      updatedAt: head.createdAt,
-      updatedBy: head.authorId,
-    }
-    await db.frames.add(frame)
-    if (sf.status === 'approved') {
-      await db.approvals.add({ id: uid('apv'), projectId, frameId, revisionId: head.id, userId: 'u_julia', decision: 'approved', createdAt: now - 2 * DAY })
-    }
-  }
-
-  await db.comments.bulkAdd([
-    {
-      id: uid('cmt'),
-      projectId,
-      frameId: frameIds[2],
-      authorId: 'u_julia',
-      text: 'Gostei! Dá pra deixar o Léo mais perto da porta? Ele é o protagonista dessa cena.',
-      pin: { x: 0.58, y: 0.62 },
-      resolved: false,
-      createdAt: now - 26 * 3600_000,
-    },
-    {
-      id: uid('cmt'),
-      projectId,
-      frameId: frameIds[2],
-      authorId: 'u_marina',
-      text: '@Júlia ótimo ponto. Ajustamos na próxima rodada.',
-      resolved: false,
-      createdAt: now - 25 * 3600_000,
-    },
-    {
-      id: uid('cmt'),
-      projectId,
-      frameId: frameIds[0],
-      authorId: 'u_julia',
-      text: 'Aprovado. A placa de vendido ficou ótima.',
-      resolved: true,
-      createdAt: now - 2 * DAY,
-    },
-  ])
-
-  await db.events.bulkAdd([
-    { id: uid('ev'), projectId, actorId: 'u_marina', type: 'project.created', message: 'Projeto “Casa Nova — Filme 30”” criado', createdAt: now - 6 * DAY },
-    { id: uid('ev'), projectId, actorId: 'u_rafael', type: 'revision.committed', message: 'Storyboard inicial com 9 quadros', createdAt: now - 3 * DAY },
-    { id: uid('ev'), projectId, actorId: 'u_julia', type: 'frame.approved', message: 'Aprovou 3 quadros', createdAt: now - 2 * DAY },
-    { id: uid('ev'), projectId, actorId: 'u_marina', type: 'revision.committed', message: 'Plano fechado para americano em “Ana com as chaves”', createdAt: now - DAY, frameId: frameIds[1] },
-    { id: uid('ev'), projectId, actorId: 'u_julia', type: 'comment.added', message: 'Comentou em “Família diante da casa”', createdAt: now - 26 * 3600_000, frameId: frameIds[2] },
-  ])
-  await db.projects.add(project)
-  await db.snapshots.add({
-    id: uid('snp'),
-    projectId,
-    name: 'Rodada 1 enviada ao cliente',
-    authorId: 'u_marina',
-    createdAt: now - 2 * DAY,
-    frames: (await db.frames.where('projectId').equals(projectId).toArray()).map((f) => ({ frameId: f.id, revisionId: f.headRevisionId, order: f.order })),
-  })
-
-  await seedSecondary(now)
-  try {
-    localStorage.setItem(SEED_FLAG, '1')
-    localStorage.setItem(RENDERER_KEY, RENDERER_VERSION)
-  } catch {
-    /* ignore */
-  }
-}
-
-async function seedSecondary(now: number) {
-  const projectId = uid('prj')
-  const sceneId = uid('scn')
-  await db.scenes.add({ id: sceneId, projectId, number: 1, heading: 'INT. ESCRITÓRIO — DIA', sequence: '', summary: '', timeOfDay: 'day', characters: ['Marta'], scriptExcerpt: '', order: 0 })
-  const items: [string, string, SketchSpec][] = [
-    ['Abertura', 'Plano geral do escritório com persianas, Marta entra.', { setting: 'office', time: 'day', shot: 'geral', people: [p(0.3, 'Marta', { pose: 'walk' })], props: [], seed: 5 }],
-    ['Notificação', 'Close de Marta sorrindo ao ver o celular.', { setting: 'office', time: 'day', shot: 'close', people: [p(0.5, 'Marta')], props: [], seed: 6 }],
-    ['Assinatura', 'Rua da cidade, assinatura do app Pulse.', { setting: 'street', time: 'sunset', shot: 'aberto', people: [], props: [], seed: 7 }],
-  ]
-  let i = 0
-  for (const [title, description, sketch] of items) {
-    const frameId = uid('frm')
-    const imageId = await img(sketch)
-    const content = { ...emptyContent({ title, description, shot: sketch.shot }), imageId, sketch }
-    const rev: Revision = { id: uid('rev'), short: shortHash(), projectId, frameId, number: 1, authorId: 'u_rafael', createdAt: now - 12 * DAY, message: 'Storyboard inicial', kind: 'initial', snapshot: content }
-    await db.revisions.add(rev)
-    await db.frames.add({ ...content, id: frameId, projectId, sceneId, order: i++, status: 'approved', headRevisionId: rev.id, approvedRevisionId: rev.id, dirty: false, updatedAt: rev.createdAt, updatedBy: 'u_rafael' })
-  }
-  await db.projects.add({
-    id: projectId,
-    name: 'Pulse — Lançamento do app 15”',
-    client: 'Pulse Bank',
-    producer: 'Lumen Filmes',
-    ownerId: 'u_marina',
-    status: 'approved',
-    style: 'sketch',
-    styleNotes: '',
-    members: [
-      { userId: 'u_marina', role: 'producer' },
-      { userId: 'u_rafael', role: 'editor' },
-      { userId: 'u_caio', role: 'client' },
-    ],
-    aspect: '16:9',
-    createdAt: now - 14 * DAY,
-    updatedAt: now - 9 * DAY,
-  })
-}
-
-const RENDERER_KEY = 'frameline.renderer'
-const RENDERER_VERSION = '2'
-
-/**
- * One-time upgrade after the demo renderer changed style: re-draws images that
- * were produced by the previous local renderer (960×540) from their stored
- * SketchSpec. Ids, revisions and history stay the same; uploads and AI images
- * from real providers are never touched.
- */
-let upgrading: Promise<number> | null = null
-export function upgradeDemoImages(): Promise<number> {
-  upgrading ??= doUpgrade()
-  return upgrading
-}
-
-async function doUpgrade(): Promise<number> {
-  try {
-    if (localStorage.getItem(RENDERER_KEY) === RENDERER_VERSION) return 0
-  } catch {
-    return 0
-  }
-  const specs = new Map<string, SketchSpec>()
-  for (const f of await db.frames.toArray()) if (f.imageId && f.sketch) specs.set(f.imageId, f.sketch)
-  for (const r of await db.revisions.toArray()) if (r.snapshot.imageId && r.snapshot.sketch) specs.set(r.snapshot.imageId, r.snapshot.sketch)
-  for (const j of await db.jobs.toArray()) if (j.candidateImageId && j.candidateSketch) specs.set(j.candidateImageId, j.candidateSketch)
-  for (const pr of await db.proposals.toArray()) if (pr.candidateSketch) specs.set(pr.candidateImageId, pr.candidateSketch)
-  for (const a of await db.assets.toArray()) {
-    if (a.type === 'character' && a.imageId) specs.set(a.imageId, { setting: 'empty', time: 'day', shot: 'americano', people: [p(0.5, a.name, a.name === 'Léo' ? { kind: 'child' } : {})], props: [], seed: a.name.length * 13 })
-  }
-  let n = 0
-  for (const [imageId, spec] of specs) {
-    const old = await db.images.get(imageId)
-    if (!old || old.width !== 960 || old.height !== 540) continue
-    const { blob, width, height } = await sketchToBlob(spec)
-    await db.images.update(imageId, { blob, width, height })
-    n++
-  }
-  try {
-    localStorage.setItem(RENDERER_KEY, RENDERER_VERSION)
-  } catch {
-    /* ignore */
-  }
-  return n
+  for (const project of PROJECTS) await seedProject(project, now)
+  localStorage.setItem(SEED_FLAG, '1')
 }
 
 export async function resetDemo() {
   await db.delete()
-  try {
-    localStorage.removeItem(SEED_FLAG)
-  } catch {
-    /* ignore */
-  }
+  localStorage.removeItem(SEED_FLAG)
   location.reload()
 }

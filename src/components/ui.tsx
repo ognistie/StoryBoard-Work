@@ -233,21 +233,6 @@ export function Avatar({ userId, size = 24, ring }: { userId: string; size?: num
   )
 }
 
-export function AvatarStack({ ids, size = 22, max = 4 }: { ids: string[]; size?: number; max?: number }) {
-  return (
-    <div className="flex -space-x-1.5">
-      {ids.slice(0, max).map((id) => (
-        <Avatar key={id} userId={id} size={size} ring />
-      ))}
-      {ids.length > max && (
-        <span className="inline-flex items-center justify-center rounded-full bg-surface-3 text-[10px] font-semibold text-fg-2 ring-2 ring-surface" style={{ width: size, height: size }}>
-          +{ids.length - max}
-        </span>
-      )}
-    </div>
-  )
-}
-
 export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-line bg-surface-2 px-1 font-mono text-[10.5px] text-fg-2">{children}</kbd>
 }

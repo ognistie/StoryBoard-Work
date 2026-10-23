@@ -94,6 +94,7 @@ export function timeAgo(ts: number): string {
   const h = Math.round(m / 60)
   if (h < 24) return `há ${h} h`
   const d = Math.round(h / 24)
+  if (d === 1) return 'ontem'
   if (d < 30) return `há ${d} ${d === 1 ? 'dia' : 'dias'}`
   return new Date(ts).toLocaleDateString('pt-BR')
 }

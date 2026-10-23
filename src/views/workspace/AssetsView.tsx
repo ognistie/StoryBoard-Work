@@ -8,9 +8,16 @@ import { fileToImage } from '../../lib/fileText'
 import { deleteAsset, putImage, saveAsset, updateProject } from '../../lib/repo'
 import { can } from '../../lib/session'
 import type { ArtStyle, Asset, AssetType } from '../../lib/types'
-import { STYLE_OPTIONS } from '../NewProjectModal'
 import { pickFile } from './actions'
 import { useWD } from './context'
+
+const STYLE_OPTIONS: { value: ArtStyle; label: string }[] = [
+  { value: 'pencil', label: 'Storyboard a lápis (P&B)' },
+  { value: 'sketch', label: 'Sketch cinematográfico' },
+  { value: 'concept', label: 'Concept art' },
+  { value: 'cinematic', label: 'Realista / cinematográfico' },
+  { value: 'custom', label: 'Customizado' },
+]
 
 const TYPE_LABEL: Record<AssetType, string> = {
   character: 'Personagens',
@@ -19,6 +26,7 @@ const TYPE_LABEL: Record<AssetType, string> = {
   prop: 'Objetos e elementos recorrentes',
   lighting: 'Identidade de iluminação',
   palette: 'Paletas e estilos',
+  reference: 'Referências do briefing',
 }
 
 export function AssetsView() {

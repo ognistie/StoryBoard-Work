@@ -16,23 +16,20 @@ bun run build      # build de produção em dist/
 
 > Se o `registry.npmjs.org` estiver bloqueado na sua rede, o `.npmrc` do projeto já aponta para o espelho oficial `registry.yarnpkg.com`.
 
-O app abre com um projeto de demonstração (“Casa Nova — Filme 30””): 9 quadros, roteiro, regras de continuidade, personagens, comentários e aprovações. Para recriar os dados, use **Configurações → Restaurar demo**.
+O app abre com três projetos de demonstração: **iugu · Energia que vira potência** (Reels de 30s, 5 cenas), **Café Moinho · Tutorial** e **Studio Vila · Anúncio**. Os desenhos ficam em `public/demo/`. Na primeira abertura depois de uma mudança no seed, os dados locais antigos são apagados e a demonstração é recriada. Para recriar à mão, use **Configurações → Restaurar demo**.
 
-## Roteiro de demonstração (3 minutos)
+## Roteiro de demonstração
 
-1. **Edição em lote**: no projeto Casa Nova, clique no quadro 01 e dê Shift+clique no 04. Clique em **Editar com IA**, escreva *“Adicionar Bia à direita, mantendo o restante”* e gere a prévia. Enquanto a IA trabalha, você pode continuar navegando. Depois, compare Antes/Depois e clique em **Aceitar todos**. O quadro 01, que já estava aprovado, passa a mostrar **Revalidar**.
-2. **Histórico e diff**: abra a aba Histórico do quadro e clique na versão. O diff mostra o slider Antes/Depois, a diferença do prompt-base, a instrução, o prompt estruturado e o contexto usado. Use **Restaurar** para criar uma nova versão sem apagar nada.
-3. **Cliente e conflito com o roteiro**: troque para **Júlia (Cliente)** no avatar. Peça *“Deixar a cena à noite”* no quadro 04. A plataforma avisa que o roteiro descreve a cena como DIA e cita a regra da marca. Confirme a exceção com uma justificativa e clique em **Enviar proposta**.
-4. **Decisão da produtora**: volte para **Marina**. O botão “1 proposta do cliente” aparece na barra; aceite ou recuse a proposta. Ao aceitar, nasce uma revisão de autoria da Júlia, com a aprovação da Marina registrada.
-5. **Tempo real**: abra o mesmo projeto em outra aba e escolha outro usuário. Comentários, presença (avatar sobre o quadro que a pessoa está vendo) e novas versões aparecem sem recarregar.
-6. Também vale mostrar: **Apresentar** (modo cliente e animatic com as durações), **Exportar** (PDF, shot list em CSV e pacote JSON), **Roteiro** (editar o texto sinaliza os quadros afetados) e **Equipe** (matriz de permissões).
+1. **Briefing mudou**: no projeto da iugu, o briefing está na v2. As cenas 2, 3 e 4 têm uma versão “Briefing mudou” com o antes e depois.
+2. **Histórico**: a cena 3 (Encaixe) tem quatro versões: a original, dois pedidos por prompt e a mudança de briefing. Use **Restaurar** para criar uma versão nova a partir de uma antiga, sem apagar nada.
+3. Também vale mostrar: **Apresentar** (animatic com as durações) e **Exportar** (PDF, shot list em CSV e pacote JSON).
 
 ## IA: provedores
 
 | Provedor | O que faz | Como ativar |
 |---|---|---|
 | **Demonstração local** | **Não é IA.** Desenha quadros no estilo de storyboard (tinta e lápis) e entende pedidos simples: adicionar ou remover pessoa ou personagem, expressão (sorrindo, surpreso…), noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
-| **OpenAI** (padrão) | Faz a decupagem do roteiro em quadros, reescreve descrições e descreve imagens importadas, sempre com saída estruturada (Zod). O app não gera imagens: o desenho do quadro sai do mesmo renderizador local do modo demonstração. | Definir `OPENAI_API_KEY` no ambiente da Vercel. Localmente, rodar com `vercel dev`, que serve o `api/` junto com o Vite. |
+| **OpenAI** (padrão) | Transforma o briefing em até 6 cenas, faz a decupagem do roteiro em quadros, reescreve descrições e descreve imagens importadas, sempre com saída estruturada (Zod). O app não gera imagens: o desenho do quadro sai do mesmo renderizador local do modo demonstração. | Definir `OPENAI_API_KEY` no ambiente da Vercel. Localmente, rodar com `vercel dev`, que serve o `api/` junto com o Vite. |
 
 Modelo: `gpt-6.1-sol`, definido em `src/lib/ai/server.ts`. As chamadas passam pelas funções em `api/`, então a chave nunca chega ao navegador. O formato de cada pedido e resposta fica em `src/lib/ai/contract.ts`, usado pelos dois lados.
 
@@ -73,8 +70,8 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 ```
 src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
                  jobs (fila IA), ai/ (openai, demo, contract, server), sketch* (renderizador local), session, presence, seed
-api/             funções da Vercel que chamam a OpenAI (plan-shots, rewrite-description, describe-image)
-src/views/       Dashboard, NewProjectModal, JoinView, Workspace
+api/             funções da Vercel que chamam a OpenAI (plan-briefing, plan-shots, rewrite-description, describe-image)
+src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), JoinView, Workspace
 src/views/workspace/  Canvas, FrameCard, Sidebar, RightPanel (IA, Detalhes, Comentários, Contexto, Histórico),
                  AIPanel, DiffModal, Viewer (anotações), Presentation (animatic), Share, Export, Script, Context,
                  Assets, History (versões/atividade/marcos), Team

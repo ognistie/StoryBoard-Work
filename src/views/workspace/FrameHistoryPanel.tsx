@@ -12,6 +12,7 @@ export const KIND_LABEL: Record<Revision['kind'], string> = {
   initial: 'Inicial',
   'ai-edit': 'Edição IA',
   'ai-generate': 'Geração IA',
+  briefing: 'Briefing mudou',
   manual: 'Manual',
   restore: 'Restauração',
   upload: 'Importação',

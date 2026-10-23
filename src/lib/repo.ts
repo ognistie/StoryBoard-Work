@@ -105,6 +105,7 @@ export async function createProject(input: {
   style: ArtStyle
   ownerId: string
   members?: { userId: string; role: Role }[]
+  aspect?: Project['aspect']
 }): Promise<string> {
   const id = uid('prj')
   const now = Date.now()
@@ -120,7 +121,7 @@ export async function createProject(input: {
     style: input.style,
     styleNotes: '',
     members,
-    aspect: '16:9',
+    aspect: input.aspect ?? '16:9',
     createdAt: now,
     updatedAt: now,
   })

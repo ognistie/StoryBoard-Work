@@ -129,7 +129,7 @@ export interface Frame extends FrameContent {
   updatedBy: string
 }
 
-export type RevisionKind = 'initial' | 'ai-edit' | 'ai-generate' | 'manual' | 'restore' | 'upload' | 'proposal'
+export type RevisionKind = 'initial' | 'ai-edit' | 'ai-generate' | 'briefing' | 'manual' | 'restore' | 'upload' | 'proposal'
 
 export interface ContextRef {
   docId: string
@@ -289,7 +289,7 @@ export interface ContextDocVersion {
   authorId: string
 }
 
-export type AssetType = 'character' | 'location' | 'wardrobe' | 'prop' | 'lighting' | 'palette'
+export type AssetType = 'character' | 'location' | 'wardrobe' | 'prop' | 'lighting' | 'palette' | 'reference'
 
 export interface Asset {
   id: string

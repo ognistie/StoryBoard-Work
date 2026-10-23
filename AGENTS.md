@@ -42,8 +42,7 @@ Duas pessoas, cada uma com seu agente, fazem push no mesmo `main`.
 ## Produto e visual
 
 - Interface em PT-BR.
-- Projeto de demo: Payme, Reels de lançamento de 30s em 5 cenas: Gancho (4s), Problema (6s), Virada (6s), Solução (8s), CTA (6s). Mote: "Tenha seu próprio gateway de pagamentos".
-- Visual escandinavo, desenhado no Paper (arquivo "Fancy meadow"):
-  - Cores: fundo `#F4F1EB`, cartões `#FBFAF7`, linhas `#E4DED3`, texto `#1F1E1B`, cinza `#77736B`, destaque verde-musgo `#3F5A4A`, preenchimento `#F0ECE4`.
-  - Fonte DM Sans, títulos com peso 500. Cantos de 14px. Linhas finas no lugar de sombras.
-  - Botões carvão com texto claro. Campo de briefing em pílula.
+- O design final está no Paper, arquivo "Decupa" (telas `01 — Início` e `02 — Canvas`). Leia valores exatos de lá, nunca de prints.
+- As cores e fontes do app moram em `src/index.css`: cinzas Zinc, azul da Apple `#0071E3` em botões e destaques, `#0066CC` em links, DM Sans na interface e Instrument Serif no logo.
+- Vidro (utilitário `glass`) só no campo de briefing, na caixa de prompt e em pílulas sobre imagem. Nós e cartões de conteúdo são sólidos.
+- Projeto de demo: iugu, Reels "Energia que vira potência", 30s em 5 cenas. Fora do roteiro: números, lucro, segurança, preço e apostas.
