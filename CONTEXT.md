@@ -48,7 +48,7 @@ Arquivo no Paper: **"Decupa"** (id `01M5MMZ6NG5SRKR97J85Q5QTFT`), com 2 telas: `
 
 ## Projeto de exemplo: iugu
 
-- **Pesquisa completa** (fora do repo): `~/Developer/decupa-assets/reports/Pesquisa iugu marca e campanhas.md`.
+- **Pesquisa completa:** `docs/pesquisa-iugu/relatorio.md` (notas das fontes em `docs/pesquisa-iugu/notas/`).
 - **Resumo:** a iugu (https://www.iugu.com/) é instituição de pagamento (Bacen desde 2020), fundada em 2012 numa garagem em Dourados (MS). Vende infraestrutura financeira modular: Cobrança, Recorrência, Split, BaaS. Marca: logo preto, um azul (#5274FF), Museo Sans, assinatura **"tecnologia que vira potência"** (manifesto dos 10 anos, 2022). Nunca usou agência, TV ou celebridade. Em 2025 teve prejuízo de R$ 97,2 mi, com perdas por fraude de clientes.
 - **Riscos para o anúncio:** evitar números (R$ 81 bi, 150 mil contas: as fontes divergem), lucro/crescimento, segurança/antifraude, preço, apostas.
 - **Reels "Energia que vira potência" (30s, 5 cenas):**
@@ -60,12 +60,17 @@ Arquivo no Paper: **"Decupa"** (id `01M5MMZ6NG5SRKR97J85Q5QTFT`), com 2 telas: `
 
 ## Imagens
 
-Feitas no Magnific (Google Nano Banana 2, 1K). Os originais ficam fora do repo, em `~/Developer/decupa-assets/`:
+Feitas no Magnific (Google Nano Banana 2, 1K). Os originais ficam em `design/`. O app usa as versões otimizadas de `public/`.
 
-- `storyboard/iugu/`: os 5 quadros da iugu, estilo simples (traço fino, azul só nos blocos, vermelho só na seta de câmera).
-- `storyboard/cafe/` e `storyboard/studio/`: quadros dos outros 2 projetos.
-- `backgrounds/`: fundos da tela inicial (o atual é `bg-6-claro.png`).
-- `textures/paper-grain.png`: textura de papel das notas.
+- `design/storyboard/iugu/`: os 5 quadros da iugu, estilo simples (traço fino, azul só nos blocos, vermelho só na seta de câmera).
+- `design/storyboard/cafe/` e `design/storyboard/studio/`: quadros dos outros 2 projetos.
+- `design/storyboard/` (raiz), `9x16/` e `simples/`: versões antigas, do projeto Payme.
+- `design/backgrounds/`: fundos da tela inicial (o atual é `bg-6-claro.png`).
+- `design/textures/paper-grain.png`: textura de papel das notas.
+
+## Responsivo
+
+Tablet e celular estão no Paper, ao lado das telas de desktop. O que muda em cada tamanho: `docs/responsivo.md`.
 
 ## Como o André gosta de conversar
 
