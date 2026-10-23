@@ -2,6 +2,8 @@
 
 App do time para o DevDay Community Hackathon São Paulo (OpenAI, 23/10/2026). Desafio 11, "Planejador de cenas para criadores": transformar uma ideia de vídeo num conjunto organizado de cenas. Cada mudança serve à demo do desafio.
 
+Produto, design (arquivo no Paper) e o projeto de exemplo da iugu: `CONTEXTO.md`.
+
 ## O desafio
 
 - Entrada: um briefing. Saída: fichas de cena com descrição, diálogo e duração estimada.
