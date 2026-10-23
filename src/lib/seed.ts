@@ -96,7 +96,7 @@ const PROJECTS: SeedProject[] = [
           },
           { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2, patch: { notes: '' } },
         ],
-        head: { kind: 'ai-edit', message: '“Time-lapse do dia até a noite.”', minutesAgo: 2 },
+        head: { kind: 'ai-edit', message: '“Time-lapse do dia até a noite.”', minutesAgo: 1 },
       },
       {
         image: 'iugu-3',
