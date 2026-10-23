@@ -8,7 +8,7 @@ import type { AIRecord, Frame, FrameContent, Project, Revision, RevisionKind, Sk
 /** Demo workspace so the product can be explored immediately. */
 
 // Bumping this key wipes the browser's data once and reseeds it.
-const SEED_FLAG = 'decupa.seeded.v2'
+const SEED_FLAG = 'decupa.seeded.v3'
 
 const OWNER = 'u_marina'
 const MIN = 60_000
@@ -57,7 +57,7 @@ const PROJECTS: SeedProject[] = [
     minutesAgo: 12,
     briefing: [IUGU_BRIEFING_V1, IUGU_BRIEFING],
     notes: [
-      { text: 'Cliente pediu: nenhum número na tela. Só a assinatura no fim.', authorId: OWNER, minutesAgo: 5, x: 612, y: 160, rotation: -2.5 },
+      { text: 'Cliente pediu: nada de números de volume ou faturamento.', authorId: OWNER, minutesAgo: 5, x: 612, y: 160, rotation: -2.5 },
       { text: 'Cena 4 em 1:1 pra reaproveitar no feed.', authorId: 'u_rafael', minutesAgo: 24 * 60, x: 880, y: 150, rotation: 2 },
     ],
     frames: [
@@ -80,7 +80,7 @@ const PROJECTS: SeedProject[] = [
           title: 'Energia escoa',
           description: 'Gestora entre planilhas, do dia até a noite.',
           action: 'Gestora financeira à mesa, entre planilhas; a luz da janela passa de dia para noite. Três pílulas surgem em volta dela.',
-          dialogue: 'LOCUÇÃO: Sua energia se consome devagar.',
+          dialogue: 'LOCUÇÃO: Processos repetitivos consomem sua energia devagar.',
           shot: 'medio',
           movement: 'estatico',
           duration: 7,
@@ -103,12 +103,12 @@ const PROJECTS: SeedProject[] = [
         content: {
           title: 'Encaixe',
           description: 'Pílulas viram blocos azuis e se encaixam.',
-          action: 'As pílulas se soltam, viram blocos arredondados e se encaixam num mosaico com quatro blocos azuis: Cobrança, Recorrência, Split, BaaS.',
-          dialogue: 'LOCUÇÃO: Quatro produtos. Um ecossistema.',
+          action: 'As três pílulas se soltam e viram blocos arredondados. Com um quarto bloco, formam um mosaico azul: Cobrança, Recorrência, Split, BaaS.',
+          dialogue: 'LOCUÇÃO: Conciliação e cobrança no automático.',
           shot: 'geral',
           movement: 'zoom',
           duration: 6,
-          notes: 'Motion graphics. Som de clique seco em cada encaixe.',
+          notes: 'Motion graphics. Texto na tela: “Quatro produtos. Um ecossistema.” Som de clique seco em cada encaixe.',
         },
         history: [
           {
@@ -123,7 +123,7 @@ const PROJECTS: SeedProject[] = [
             minutesAgo: 9,
             patch: { dialogue: 'LOCUÇÃO: Automatize sua gestão financeira.', notes: 'Motion graphics.' },
           },
-          { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2, patch: { notes: 'Motion graphics.' } },
+          { kind: 'briefing', message: BRIEFING_CHANGE, minutesAgo: 2, patch: { notes: 'Motion graphics. Texto na tela: “Quatro produtos. Um ecossistema.”' } },
         ],
         head: { kind: 'ai-edit', message: '“Deixa o encaixe mais seco, com som de clique.”', minutesAgo: 1 },
       },
