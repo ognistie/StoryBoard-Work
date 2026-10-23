@@ -4,6 +4,8 @@ Planejador de cenas para criadores. O briefing vira até 6 cenas, cada uma com d
 
 O diferencial é a **edição conversacional e incremental**: escreva só o que quer mudar numa cena, ou edite o briefing, e a IA refaz apenas o que foi afetado. Cada mudança vira uma versão, com antes e depois, no estilo dos commits do GitHub.
 
+[![Vídeo de demonstração do Decupa](docs/media/demo-video.jpg)](https://cleanshot.com/share/x0frYWc0)
+
 ## Rodando
 
 ```bash
@@ -41,38 +43,28 @@ Modelo: `gpt-6.1-sol`, definido em `src/lib/ai/server.ts`. As chamadas passam pe
 
 ## Arquitetura e decisões
 
-**Stack:** Vite + React 18 + TypeScript, Tailwind CSS v4, Dexie (IndexedDB), Zustand, dnd-kit, lucide, pdf.js e mammoth (carregados sob demanda).
+**Stack:** Vite + React 18 + TypeScript, Tailwind CSS v4, React Flow (`@xyflow/react`), Dexie (IndexedDB), Zustand, AI SDK com a OpenAI nas funções da Vercel, pdf.js e mammoth (anexos do briefing, carregados sob demanda).
 
-- **Sem banco no servidor, por decisão do time**: o estado fica no navegador (IndexedDB). O único código de servidor são as funções de IA em `api/`. O Dexie propaga as mudanças entre abas da mesma origem, o que dá o “tempo real” entre Produtora e Cliente. A presença usa `BroadcastChannel`. Escolhemos Vite em vez de Next.js porque não há páginas renderizadas no servidor.
-- **Camada de domínio única** (`src/lib/repo.ts`): toda mutação autoriza o ator pelo papel no projeto, grava um evento de auditoria e trata revisões e imagens como *append-only*.
-- **Versionamento** (`Revision`): hash curto, autor, mensagem, snapshot imutável do quadro, registro de IA (instrução, prompt-base, prompt estruturado, provedor, latência, trechos de contexto e exceção autorizada). Restaurar cria uma nova revisão.
-- **Cópia de trabalho × versão**: editar metadados deixa o quadro “não versionado” até alguém registrar a versão. A aprovação sempre aponta para uma revisão exata e registra antes as alterações pendentes.
-- **Concorrência**: o aceite faz *compare-and-set* com a revisão-base do job. Se o quadro mudou durante a geração, o app avisa e só aplica com confirmação explícita, sem sobrescrever nada em silêncio.
-- **Motor de contexto** (`src/lib/context.ts`):
-  - parser de roteiro (INT./EXT., personagens, falas e período do dia);
-  - divisão do roteiro por cena e dos demais documentos por seção, sempre com origem rastreável;
-  - busca BM25 com peso maior para o roteiro e para a cena do quadro;
-  - detecção de conflitos: período do dia, personagem fora da cena, remoção de personagem do roteiro e regras do tipo “sempre/nunca”;
-  - prompt estruturado com hierarquia (preservar → alteração → região → personagens → contexto).
-- **Segurança**:
-  - documentos importados entram no prompt como **dados delimitados**, sem poder de instrução, e os delimitadores são neutralizados;
-  - documentos **confidenciais** não chegam a clientes nem a prompts pedidos por clientes, e o diff esconde trechos e prompts derivados deles;
-  - links de convite usam tokens aleatórios, expiram e podem ser revogados.
+- **Sem banco no servidor, por decisão do time**: o estado fica no navegador (IndexedDB). O único código de servidor são as funções de IA em `api/`. O Dexie propaga as mudanças entre abas da mesma origem. Escolhemos Vite em vez de Next.js porque não há páginas renderizadas no servidor.
+- **Camada de domínio única** (`src/lib/repo.ts`): toda mutação autoriza o ator pelo papel no projeto e trata revisões e imagens como *append-only*.
+- **Versionamento** (`Revision`): hash curto, autor, mensagem, snapshot imutável da cena e, quando veio da IA, o pedido, o modelo, a latência e o resumo do que mudou. Restaurar cria uma nova revisão.
+- **Cópia de trabalho × versão**: editar a ficha deixa a cena “sem versão” até alguém salvar a versão.
+- **Concorrência**: se a cena ganhou uma versão enquanto a IA trabalhava, `reviseScene` recusa o resultado em vez de sobrescrever.
+- **Segurança**: o briefing, os anexos e os pedidos entram no prompt como dados, nunca como instruções.
 
 ### Mapa do código
 
 ```
-src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
+src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (rótulos de plano e câmera),
                  briefing e scenes (IA), ai/ (openai, contract, server), sketch* (renderizador local), session, seed
-api/             funções da Vercel que chamam a OpenAI (plan-briefing, revise-scene, apply-briefing, plan-shots, rewrite-description, describe-image)
+api/             funções da Vercel que chamam a OpenAI (plan-briefing, revise-scene, apply-briefing)
 src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), Workspace
 src/views/workspace/  SceneCanvas (React Flow: briefing, cenas, notas, zoom), nodes/ (BriefingNode, SceneNode, NoteNode),
                  Inspector (Versões e Ficha), PromptBox, ExportMenu, scene (rótulos e formatos)
-src/test/        testes de contexto/regras/edição demo e de repo (revisões, aprovação, propostas, concorrência, permissões)
+src/test/        testes de repo (revisões, permissões), scenes (IA por cena e briefing) e do renderizador local
 ```
 
 ## Limitações conhecidas
 
-- **Sem banco no servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. As identidades são de demonstração. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
-- **Busca de contexto** é lexical (BM25), sem embeddings.
-- **Fora do escopo do MVP**: menções com notificação por e-mail, comentários em regiões retangulares (hoje são pontos) e desfazer/refazer granular para metadados (a restauração formal já existe).
+- **Sem banco no servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. As identidades são de demonstração. Para produção, o caminho é trocar o `db` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime e Storage com URLs assinadas), mantendo `repo.ts` como contrato.
+- **Fora do escopo do MVP**: desfazer/refazer granular na ficha (a restauração de versões já existe).
