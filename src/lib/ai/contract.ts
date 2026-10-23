@@ -9,8 +9,8 @@ export const plannedFrameSchema = z.object({
   description: z.string().describe('Descrição visual objetiva do quadro, 1 a 2 frases.'),
   action: z.string(),
   dialogue: z.string().describe('Falas no formato NOME: fala. Vazio se não houver fala.'),
-  shot: z.enum(SHOT_TYPES),
-  movement: z.enum(CAMERA_MOVES),
+  shot: z.enum(SHOT_TYPES).describe('Enquadramento. "motion" é cena de motion graphics; "conjunto" é plano de conjunto (grupo inteiro).'),
+  movement: z.enum(CAMERA_MOVES).describe('Movimento de câmera. "estatico" é câmera fixa; "tracking" é travelling; "push-in" é aproximação lenta.'),
   characters: z.array(z.string()),
   duration: z.int().describe('Duração em segundos.'),
 })

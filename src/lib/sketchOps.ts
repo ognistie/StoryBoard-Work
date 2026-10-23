@@ -1,5 +1,6 @@
 import { norm } from './context'
-import type { Asset, HairStyle, Outfit, Region, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
+import type { SketchSubject, StoryboardSpec } from './sketch'
+import type { Asset, HairStyle, Outfit, Project, Region, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
 
 /**
  * Pure functions that turn short natural-language deltas into SketchSpec changes.
@@ -17,7 +18,8 @@ const PROPS: [RegExp, string][] = [
   [/\bbal(a|o)o/, 'balao'],
 ]
 
-const PERSON_WORDS = /\b(pessoa|pessoas|alguem|homem|mulher|crianca|criancas|menino|menina|personagem|figurante|amig\w*|vizinh\w*|corretor\w*|senhor\w*|filh\w*|pai|mae|avo)\b/
+const PERSON_WORDS = /\b(pessoa|pessoas|alguem|homem|mulher|crianca|criancas|menino|menina|personagem|figurante|amig\w*|vizinh\w*|corretor\w*|senhor\w*|filh\w*|pai|mae|avo|gestor\w*|lojista|barista|cliente|apresentador\w*|profissional|colaborador\w*|funcionari\w*|atendente|instrutor\w*|alun[oa]s?|dono|dona|ela|ele)\b/
+const GROUP_WORDS = /\b(time|equipe|reuniao|grupo|colegas|todos)\b/
 const ADD = /\b(adicion\w*|inclu\w*|coloc\w*|acrescent\w*|bot\w*|insir\w*|insere|por mais|mais uma|mais um|aparec\w*)\b/
 const REMOVE = /\b(remov\w*|tir\w*|apag\w*|exclu\w*|elimin\w*)\b/
 const NUMBERS: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, '2': 2, '3': 3 }
@@ -207,19 +209,76 @@ const SETTINGS: [RegExp, SketchSpec['setting']][] = [
   [/casa|fachada|porta|frente/, 'house'],
 ]
 
+/** Subjects a storyboard frame can show, with the PT-BR words that call for each. Checked on normalized text. */
+const SUBJECT_WORDS: [RegExp, SketchSubject][] = [
+  [/\bmaos?\b|\bdedos?\b|segura|escrev|digit|moendo|\bmoe\b/, 'hands'],
+  [/celular|smartphone|telefone|notificac|aplicativo|\bapp\b/, 'phone'],
+  [/laptop|notebook|computador|teclado/, 'laptop'],
+  [/\bmesa\b|balcao|bancada|escrivaninha/, 'desk'],
+  [/moedor|moagem|\bmoer\b|moendo|\bgraos?\b/, 'grinder'],
+  [/xicara|caneca|\bcafe\b|coado|coador|\bcha\b/, 'cup'],
+  [/formula|equacao|\bp ?= ?e\b|energia ?\/ ?tempo|energia ÷ tempo/, 'formula'],
+  [/papel|caderno|folha|anota|bloco de notas|post-?it|carta\b/, 'paper'],
+  [/planilha|grafico|dashboard|painel|\btela\b|relatorio|quadro de planejamento|indicador/, 'chart'],
+  [/\blogo|\bmarca\b|simbolo|assinatura|lettering|texto na tela|cartela/, 'logo'],
+  [/\bblocos?\b|pilulas?|\bpecas?\b|encaix|modul|lego/, 'blocks'],
+  [/janela|\bluz\b/, 'window'],
+  [/produto|embalagem|\bcaixas?\b|pacote|sacola|garrafa/, 'product'],
+  [/\bloja\b|vitrine|fachada|comercio|cafeteria/, 'shop'],
+  [/\brua\b|cidade|calcada|avenida|predios?/, 'street'],
+]
+
+/** Camera moves named in the scene text, for when the caller does not pass one. */
+const MOVE_WORDS: [RegExp, string][] = [
+  [/push.?in|dolly.?in|aproxima/, 'push-in'],
+  [/zoom.?out|afasta|recua/, 'zoom-out'],
+  [/time.?lapse/, 'time-lapse'],
+  [/travel+ing|tracking|acompanha/, 'tracking'],
+  [/\bpan\b|panoramica/, 'pan'],
+  [/\btilt\b/, 'tilt'],
+  [/camera na mao|handheld/, 'handheld'],
+  [/\bgrua\b|crane/, 'crane'],
+]
+
+/** Subjects in the order the text mentions them, so the first one leads the frame. */
+function subjectsIn(t: string): SketchSubject[] {
+  const found = SUBJECT_WORDS.map(([re, subject]) => ({ subject, at: t.search(re) }))
+    .filter((f) => f.at >= 0)
+    .sort((a, b) => a.at - b.at)
+    .map((f) => f.subject)
+  // a written formula already is the paper
+  return found.includes('formula') ? found.filter((s) => s !== 'paper') : found
+}
+
+function seedOf(t: string) {
+  let h = 2166136261
+  for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619)
+  return (h >>> 0) % 1e6
+}
+
+/**
+ * Reads a scene's text into a storyboard spec: who is in it, what it shows, the framing and the camera move.
+ * The same text always draws the same frame unless a seed is passed.
+ */
 export function specFromDescription(
   text: string,
-  opts: { characters?: Asset[]; shot?: ShotType; time?: TimeOfDay; seed?: number } = {},
-): SketchSpec {
+  opts: { characters?: Asset[]; shot?: ShotType; time?: TimeOfDay; seed?: number; movement?: string; aspect?: Project['aspect'] } = {},
+): StoryboardSpec {
   const t = norm(text)
   const setting = SETTINGS.find(([re]) => re.test(t))?.[1] ?? 'empty'
   const chars = charactersIn(text, opts.characters ?? [])
+  let subjects = subjectsIn(t)
   let people: SketchPerson[] = chars.map((c) => ({ ...lookFor(c.description), x: 0, name: c.name, kind: isChildAsset(c) ? 'child' : 'adult', pose: 'stand', facing: 'right' }))
   if (!people.length) {
-    const n = /familia/.test(t) ? 3 : /casal|dois|duas/.test(t) ? 2 : PERSON_WORDS.test(t) ? 1 : 0
-    people = Array.from({ length: n }, (_, i) => ({ x: 0, kind: i === 2 ? 'child' : 'adult', pose: 'stand', facing: 'right' }))
+    const n = /familia/.test(t) || GROUP_WORDS.test(t) ? 3 : /casal|dois|duas/.test(t) ? 2 : PERSON_WORDS.test(t) ? 1 : 0
+    people = Array.from({ length: n }, (_, i) => ({ x: 0, kind: i === 2 && /familia/.test(t) ? 'child' : 'adult', pose: 'stand', facing: 'right' }))
   }
-  const span = Math.min(0.6, 0.18 * Math.max(0, people.length - 1))
+  // never an empty frame: someone at a laptop
+  if (!people.length && !subjects.some((s) => s !== 'window' && s !== 'desk')) {
+    people = [{ x: 0, kind: 'adult', pose: 'stand', facing: 'right' }]
+    subjects = [...subjects, 'laptop', 'desk']
+  }
+  const span = Math.min(0.6, 0.22 * Math.max(0, people.length - 1))
   people.forEach((p, i) => {
     p.x = people.length === 1 ? 0.5 : 0.5 - span / 2 + (span * i) / (people.length - 1)
     p.facing = p.x > 0.5 ? 'left' : 'right'
@@ -235,6 +294,9 @@ export function specFromDescription(
     people,
     props,
     weather: /chuv/.test(t) ? 'rain' : 'none',
-    seed: opts.seed ?? Math.floor(Math.random() * 1e6),
+    seed: opts.seed ?? seedOf(t),
+    subjects,
+    movement: opts.movement ?? MOVE_WORDS.find(([re]) => re.test(t))?.[1],
+    aspect: opts.aspect,
   }
 }

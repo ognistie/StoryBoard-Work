@@ -13,7 +13,7 @@ export type NoteNodeType = Node<NoteNodeData, 'note'>
 const PAPER =
   'radial-gradient(ellipse 80% 50% at 100% 100% in oklab, #FFFFFF80 0%, #FFFFFF00 60%), linear-gradient(in oklab 180deg, #F7DE6E 0%, #FBE98C 15%, #FEF0A6 72%, #FFF5C2 100%)'
 
-/** A sticky note. Click the text to write; a note left empty is removed. */
+/** A sticky note. Drag it anywhere; double-click to write. A note left empty is removed. */
 export function NoteNode({ data }: NodeProps<NoteNodeType>) {
   const { note, userId } = data
   // Only a note that was just added opens for writing; an old empty one waits for a click.
@@ -55,7 +55,7 @@ export function NoteNode({ data }: NodeProps<NoteNodeType>) {
       <div className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-multiply" style={{ backgroundImage: 'url(/note-grain.webp)' }} />
       <div className="relative flex h-full flex-col justify-between pt-4 pr-3.5 pb-[11px] pl-[15px]">
         {draft === undefined ? (
-          <p onClick={() => setDraft(note.text)} className="nodrag flex-1 cursor-text font-hand text-[22px] leading-[23px] font-medium text-[#3B3626]">
+          <p onDoubleClick={() => setDraft(note.text)} title="Arraste para mover. Clique duas vezes para escrever." className="flex-1 cursor-grab font-hand text-[22px] leading-[23px] font-medium text-[#3B3626] active:cursor-grabbing">
             {note.text}
           </p>
         ) : (

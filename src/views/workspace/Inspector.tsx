@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cx, Spinner, toast, toastError } from '../../components/ui'
 import { timeAgo } from '../../lib/hooks'
 import { commitFrame, restoreRevision, updateFrame } from '../../lib/repo'
@@ -11,7 +11,7 @@ import { useWS, type InspectorTab } from './store'
 
 const BADGE = 'flex h-5 items-center rounded-[10px] px-2 text-[11px] leading-[14px] font-semibold'
 
-function Tabs({ value, onChange }: { value: InspectorTab; onChange: (t: InspectorTab) => void }) {
+function Tabs({ value, onChange, className }: { value: InspectorTab; onChange: (t: InspectorTab) => void; className?: string }) {
   const tab = (id: InspectorTab, label: string) => (
     <button
       role="tab"
@@ -26,7 +26,7 @@ function Tabs({ value, onChange }: { value: InspectorTab; onChange: (t: Inspecto
     </button>
   )
   return (
-    <div role="tablist" className="flex rounded-full bg-[#F4F4F5] p-[3px]">
+    <div role="tablist" className={cx('flex rounded-full bg-[#F4F4F5] p-[3px]', className)}>
       {tab('versions', 'Versões')}
       {tab('sheet', 'Ficha')}
     </div>
@@ -101,11 +101,11 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
           <span className="text-[12px] leading-4 text-faint">{timeAgo(rev.createdAt)}</span>
         ) : (
           <span className="relative flex h-4 items-center">
-            <span className="text-[12px] leading-4 text-faint transition-opacity group-hover:opacity-0">{timeAgo(rev.createdAt)}</span>
+            <span className="text-[12px] leading-4 text-faint transition-opacity group-hover:opacity-0 [@media(hover:none)]:opacity-0">{timeAgo(rev.createdAt)}</span>
             <button
               disabled={busy}
               onClick={(e) => (e.stopPropagation(), void restore())}
-              className="absolute right-0 flex h-7 items-center rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              className="absolute right-0 flex h-7 items-center rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
             >
               Restaurar
             </button>
@@ -129,7 +129,7 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
             <button
               disabled={busy}
               onClick={(e) => (e.stopPropagation(), void restore())}
-              className="flex h-7 items-center gap-1.5 rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              className="flex h-7 items-center gap-1.5 rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
             >
               {busy && <Spinner className="size-3.5 text-accent" />}
               Restaurar
@@ -240,36 +240,73 @@ function Sheet({ frame }: { frame: Frame }) {
   )
 }
 
-/** The panel for the selected scene: its versions, or its sheet of fields. */
-export function Inspector() {
+function useSelectedScene() {
   const { ordered, revisions } = useWD()
   const { selectedId, inspectorTab, set } = useWS()
   const index = ordered.findIndex((f) => f.id === selectedId)
   const frame = ordered[index]
+  return { index, frame, revisions: frame ? revisions.filter((r) => r.frameId === frame.id) : [], tab: inspectorTab, setTab: (t: InspectorTab) => set({ inspectorTab: t }) }
+}
 
-  // Keep a scene selected: the one changed last when nothing is, or when the selected one was removed.
-  useEffect(() => {
-    if (frame || !ordered.length) return
-    const latest = ordered.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
-    set({ selectedId: latest.id })
-  }, [frame, ordered, set])
+function SceneTitle({ index, frame }: { index: number; frame: Frame }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-[13px] leading-4 font-medium text-muted">Cena {index + 1}</span>
+      <h2 className="truncate text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-black">{frame.title}</h2>
+    </div>
+  )
+}
 
+function NoScene() {
+  const { ordered } = useWD()
+  return (
+    <div className="flex flex-1 items-center justify-center px-8 text-center text-[14px] leading-5 text-muted">
+      {ordered.length ? 'Selecione uma cena para ver as versões e a ficha.' : 'Este projeto ainda não tem cenas.'}
+    </div>
+  )
+}
+
+/** The panel for the selected scene on desktop: its versions, or its sheet of fields. */
+export function Inspector() {
+  const { index, frame, revisions, tab, setTab } = useSelectedScene()
   return (
     <aside className="flex h-full w-full flex-col overflow-clip rounded-2xl border border-[#E4E4E7] bg-white shadow-[0_1px_2px_#0000000A,0_8px_24px_#0000000F]">
       {frame ? (
         <>
           <div className="flex flex-col gap-3.5 px-[22px] pt-[22px] pb-4">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] leading-4 font-medium text-muted">Cena {index + 1}</span>
-              <h2 className="truncate text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-black">{frame.title}</h2>
-            </div>
-            <Tabs value={inspectorTab} onChange={(t) => set({ inspectorTab: t })} />
+            <SceneTitle index={index} frame={frame} />
+            <Tabs value={tab} onChange={setTab} />
           </div>
-          {inspectorTab === 'versions' ? <Versions frame={frame} revisions={revisions.filter((r) => r.frameId === frame.id)} /> : <Sheet frame={frame} />}
+          {tab === 'versions' ? <Versions frame={frame} revisions={revisions} /> : <Sheet frame={frame} />}
         </>
       ) : (
-        <div className="flex flex-1 items-center justify-center px-8 text-center text-[14px] leading-5 text-muted">Este projeto ainda não tem cenas.</div>
+        <NoScene />
       )}
     </aside>
+  )
+}
+
+/**
+ * The same content inside a bottom sheet. On tablet the title and the tabs share a row;
+ * on a phone they stack, because the row would leave the title no room.
+ */
+export function InspectorSheetContent({ layout }: { layout: 'row' | 'stack' }) {
+  const { index, frame, revisions, tab, setTab } = useSelectedScene()
+  if (!frame) return <NoScene />
+  return (
+    <>
+      {layout === 'row' ? (
+        <div className="flex items-center justify-between gap-6 px-[22px] pt-1 pb-2.5">
+          <SceneTitle index={index} frame={frame} />
+          <Tabs value={tab} onChange={setTab} className="w-[240px] shrink-0" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3.5 px-[22px] pt-1 pb-4">
+          <SceneTitle index={index} frame={frame} />
+          <Tabs value={tab} onChange={setTab} />
+        </div>
+      )}
+      {tab === 'versions' ? <Versions frame={frame} revisions={revisions} /> : <Sheet frame={frame} />}
+    </>
   )
 }

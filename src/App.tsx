@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Toaster } from './components/ui'
-import { recoverOrphanJobs } from './lib/jobs'
 import { seedDemo } from './lib/seed'
 import { Home } from './views/Home'
-import { JoinView } from './views/JoinView'
 import { SketchLab } from './views/SketchLab'
 import { Workspace } from './views/Workspace'
 
-export type Route = { name: 'home' } | { name: 'project'; id: string } | { name: 'join'; token: string } | { name: 'lab' }
+export type Route = { name: 'home' } | { name: 'project'; id: string } | { name: 'lab' }
 
 function parse(hash: string): Route {
   const h = hash.replace(/^#\/?/, '')
   const [a, b] = h.split('/')
   if (a === 'p' && b) return { name: 'project', id: b }
-  if (a === 'join' && b) return { name: 'join', token: b }
   if (a === 'lab' && import.meta.env.DEV) return { name: 'lab' }
   return { name: 'home' }
 }
@@ -35,10 +32,7 @@ export default function App() {
   useEffect(() => {
     seedDemo()
       .catch((e) => console.error('[seed]', e))
-      .finally(() => {
-        setReady(true)
-        void recoverOrphanJobs()
-      })
+      .finally(() => setReady(true))
   }, [])
 
   if (!ready)
@@ -52,7 +46,6 @@ export default function App() {
     <>
       {route.name === 'home' && <Home />}
       {route.name === 'project' && <Workspace key={route.id} projectId={route.id} />}
-      {route.name === 'join' && <JoinView token={route.token} />}
       {route.name === 'lab' && <SketchLab />}
       <Toaster />
     </>

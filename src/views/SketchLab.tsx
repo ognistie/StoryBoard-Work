@@ -1,37 +1,66 @@
-import { useEffect, useRef } from 'react'
-import { renderSketch, SKETCH_H, SKETCH_W } from '../lib/sketch'
-import type { SketchPerson, SketchSpec } from '../lib/types'
+import { useEffect, useRef, useState } from 'react'
+import { renderSketch, sketchSize, type StoryboardSpec } from '../lib/sketch'
+import { specFromDescription } from '../lib/sketchOps'
+import type { CameraMove, Project, ShotType } from '../lib/types'
 
-/** Dev-only gallery (#/lab) to review the demo renderer across shots and settings. */
-const P = (x: number, name: string, extra: Partial<SketchPerson> = {}): SketchPerson => ({ x, name, kind: 'adult', pose: 'stand', facing: x > 0.5 ? 'left' : 'right', ...extra })
+/** Dev-only gallery (#/lab): scene texts × shots at card size, to review the storyboard renderer. */
 
-const SPECS: SketchSpec[] = [
-  { setting: 'house', time: 'day', shot: 'aberto', people: [P(0.3, 'Pedro', { hair: 'short', outfit: 'striped', beard: true }), P(0.45, 'Ana', { hair: 'curly', outfit: 'jacket' }), P(0.6, 'Léo', { kind: 'child', hair: 'cap', pose: 'walk' }), P(0.75, 'Bia', { hair: 'bun', outfit: 'jacket' })], props: ['caixas'], seed: 33 },
-  { setting: 'house', time: 'day', shot: 'geral', people: [], props: ['carro', 'placa'], seed: 11 },
-  { setting: 'living', time: 'day', shot: 'medio', people: [P(0.5, 'Pedro', { hair: 'short', outfit: 'striped', beard: true })], props: [], seed: 66 },
-  { setting: 'office', time: 'day', shot: 'close', people: [P(0.5, 'Marta', { hair: 'long', outfit: 'collar' })], props: [], seed: 6 },
-  { setting: 'garden', time: 'sunset', shot: 'geral', people: [P(0.42, 'Ana', { pose: 'sit', hair: 'curly' }), P(0.52, 'Pedro', { pose: 'sit' }), P(0.34, 'Léo', { kind: 'child', pose: 'sit', hair: 'cap' })], props: ['cachorro'], seed: 88 },
-  { setting: 'empty', time: 'sunset', shot: 'detalhe', people: [], props: ['chaves'], seed: 99 },
-  { setting: 'living', time: 'night', shot: 'aberto', people: [P(0.3, 'Léo', { kind: 'child', pose: 'sit', hair: 'cap' }), P(0.66, 'Ana', { hair: 'curly', outfit: 'jacket', pose: 'wave' })], props: [], seed: 77 },
-  { setting: 'street', time: 'day', shot: 'americano', people: [P(0.5, 'Marta', { hair: 'ponytail', outfit: 'collar', expression: 'surprised' })], props: [], seed: 7 },
-  { setting: 'house', time: 'night', shot: 'ots', people: [P(0.62, 'Ana', { hair: 'curly', outfit: 'jacket', expression: 'laugh' })], props: [], seed: 5 },
-  { setting: 'kitchen', time: 'day', shot: 'extreme-close', people: [P(0.5, 'Léo', { kind: 'child', hair: 'spiky', expression: 'surprised' })], props: [], seed: 9 },
+const SCENES: { text: string; move: CameraMove }[] = [
+  { text: 'Close nas mãos moendo café no moedor sobre o balcão.', move: 'push-in' },
+  { text: 'Mão escreve a fórmula P = E/t num papel; o traço vira uma pílula azul.', move: 'push-in' },
+  { text: 'A gestora entre planilhas na mesa, do dia até a noite pela janela.', move: 'time-lapse' },
+  { text: 'Pílulas viram blocos azuis que se encaixam num ecossistema.', move: 'zoom-out' },
+  { text: 'De manhã, ela leva o time para a estratégia diante do quadro de planejamento.', move: 'tracking' },
+  { text: 'Os blocos formam o símbolo; entra a assinatura da marca.', move: 'estatico' },
+  { text: 'O cliente recebe a notificação no celular.', move: 'tilt' },
+  { text: 'A xícara de café coado, com vapor.', move: 'pan' },
+  { text: 'Fachada da loja na rua, de manhã.', move: 'handheld' },
+  { text: 'Embalagem do produto girando na bancada.', move: 'crane' },
+  { text: 'Ela respira fundo.', move: 'estatico' },
 ]
 
-function Panel({ spec }: { spec: SketchSpec }) {
+const SHOTS: ShotType[] = ['detalhe', 'close', 'medio', 'aberto', 'conjunto', 'motion']
+
+function Panel({ spec, width }: { spec: StoryboardSpec; width: number }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const [ms, setMs] = useState(0)
+  const size = sketchSize(spec.aspect)
   useEffect(() => {
-    renderSketch(ref.current!.getContext('2d')!, spec)
-  }, [spec])
-  return <canvas ref={ref} width={SKETCH_W} height={SKETCH_H} className="w-full" />
+    const t0 = performance.now()
+    renderSketch(ref.current!.getContext('2d')!, spec, size.width, size.height)
+    setMs(Math.round(performance.now() - t0))
+  }, [spec, size.width, size.height])
+  return (
+    <figure className="flex flex-col gap-1">
+      <canvas ref={ref} width={size.width} height={size.height} style={{ width }} className="rounded-md bg-white" />
+      <figcaption className="text-[10px] text-neutral-600">
+        {spec.shot} · {spec.movement ?? '—'} · {ms}ms
+      </figcaption>
+    </figure>
+  )
+}
+
+function Row({ text, move, aspect = '9:16' }: { text: string; move: CameraMove; aspect?: Project['aspect'] }) {
+  return (
+    <section className="flex flex-col gap-1.5">
+      <p className="text-[12px] text-neutral-800">{text}</p>
+      <div className="flex flex-wrap gap-3">
+        {SHOTS.map((shot) => (
+          <Panel key={shot} spec={specFromDescription(text, { shot, movement: move, aspect })} width={aspect === '9:16' ? 160 : aspect === '1:1' ? 208 : 284} />
+        ))}
+      </div>
+    </section>
+  )
 }
 
 export function SketchLab() {
   return (
-    <div className="grid grid-cols-2 gap-3 bg-neutral-300 p-3">
-      {SPECS.map((s, i) => (
-        <Panel key={i} spec={s} />
+    <div className="flex flex-col gap-6 bg-neutral-200 p-4">
+      {SCENES.map((s) => (
+        <Row key={s.text} {...s} />
       ))}
+      <Row text="De manhã, ela leva o time para a estratégia diante do quadro de planejamento." move="tracking" aspect="1:1" />
+      <Row text="Close nas mãos moendo café no moedor sobre o balcão." move="push-in" aspect="16:9" />
     </div>
   )
 }

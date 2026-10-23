@@ -25,10 +25,16 @@ function Chevron() {
   )
 }
 
+// On phones the format and length leave the field and sit below it as chips with the field's own glass.
+const PILL_STYLE = {
+  inline: cx('hidden h-11 rounded-full px-4 md:flex', INNER_GLASS),
+  chip: 'flex h-9 rounded-[18px] border border-white/70 bg-white/42 px-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.9),0_4px_16px_rgb(0_0_0/0.08)] backdrop-blur-[24px] backdrop-saturate-[1.8] md:hidden',
+}
+
 // The visible label sizes the pill; the native select sits invisibly on top, so the pill is as wide as the current choice.
-function PillSelect<T extends string | number>({ label, value, options, onChange, disabled }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; disabled: boolean }) {
+function PillSelect<T extends string | number>({ label, value, options, onChange, disabled, variant }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; disabled: boolean; variant: keyof typeof PILL_STYLE }) {
   return (
-    <div className={cx('relative flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 transition-colors focus-within:bg-white/80 hover:bg-white/80', INNER_GLASS)}>
+    <div className={cx('relative shrink-0 items-center gap-1.5 transition-colors focus-within:bg-white/80 hover:bg-white/80', PILL_STYLE[variant])}>
       <span className="text-[14px] leading-[18px] font-medium text-fg">{options.find((o) => o.value === value)?.label}</span>
       <Chevron />
       <select
@@ -75,14 +81,21 @@ export function BriefingComposer() {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) void submit(e)
   }
 
+  const selects = (variant: keyof typeof PILL_STYLE) => (
+    <>
+      <PillSelect label="Formato" value={format} options={FORMAT_OPTIONS} onChange={setFormat} disabled={busy} variant={variant} />
+      <PillSelect label="Duração" value={durationSeconds} options={DURATION_OPTIONS.map((s) => ({ value: s, label: `${s}s` }))} onChange={setDurationSeconds} disabled={busy} variant={variant} />
+    </>
+  )
+
   const grow = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, MAX_FIELD_HEIGHT)}px`
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-3">
-      <form onSubmit={submit} className="glass flex min-h-[68px] w-full items-end gap-2 rounded-[34px] px-3 py-[11px]">
+    <div className="flex w-full flex-col gap-3">
+      <form onSubmit={submit} className="glass flex min-h-[60px] w-full items-end gap-2 rounded-[30px] px-2 py-[7px] md:min-h-[68px] md:rounded-[34px] md:px-3 md:py-[11px]">
         <button
           type="button"
           aria-label="Anexar arquivo"
@@ -104,21 +117,27 @@ export function BriefingComposer() {
             e.target.value = ''
           }}
         />
-        <textarea
-          rows={1}
-          value={briefing}
-          disabled={busy}
-          onChange={(e) => {
-            setBriefing(e.target.value)
-            grow(e.target)
-          }}
-          onKeyDown={onKeyDown}
-          placeholder="Cole o briefing ou descreva o vídeo…"
-          aria-label="Briefing"
-          className="min-w-0 flex-1 resize-none self-center bg-transparent py-2.5 pl-1.5 text-[18px] leading-6 text-fg outline-none placeholder:text-muted"
-        />
-        <PillSelect label="Formato" value={format} options={FORMAT_OPTIONS} onChange={setFormat} disabled={busy} />
-        <PillSelect label="Duração" value={durationSeconds} options={DURATION_OPTIONS.map((s) => ({ value: s, label: `${s}s` }))} onChange={setDurationSeconds} disabled={busy} />
+        {/* A textarea never ellipsizes its placeholder, so the hint is drawn on top and cut with "…" on narrow screens. */}
+        <div className="relative flex min-w-0 flex-1 self-center">
+          {!briefing && (
+            <span aria-hidden className="pointer-events-none absolute top-1/2 right-0 left-1.5 -translate-y-1/2 truncate text-[16px] leading-6 text-muted md:text-[18px]">
+              Cole o briefing ou descreva o vídeo…
+            </span>
+          )}
+          <textarea
+            rows={1}
+            value={briefing}
+            disabled={busy}
+            onChange={(e) => {
+              setBriefing(e.target.value)
+              grow(e.target)
+            }}
+            onKeyDown={onKeyDown}
+            aria-label="Briefing"
+            className="min-w-0 flex-1 resize-none bg-transparent py-2.5 pl-1.5 text-[16px] leading-6 text-fg outline-none md:text-[18px]"
+          />
+        </div>
+        {selects('inline')}
         <button
           type="submit"
           aria-label="Criar cenas"
@@ -135,8 +154,10 @@ export function BriefingComposer() {
         </button>
       </form>
 
+      <div className="flex gap-2 md:hidden">{selects('chip')}</div>
+
       {(file || busy) && (
-        <div className="flex items-center gap-2 text-[13px] text-muted">
+        <div className="flex items-center justify-center gap-2 text-[13px] text-muted">
           {file && (
             <span className={cx('flex h-7 items-center gap-1.5 rounded-full pr-1 pl-2.5 text-fg-2', INNER_GLASS)}>
               <Paperclip className="size-3.5" />

@@ -17,6 +17,7 @@ export const DEFAULT_CARD_WIDTH: Record<Aspect, number> = { '9:16': 200, '1:1': 
 
 export const SHOT_TAG: Record<ShotType, string> = {
   geral: 'GERAL',
+  conjunto: 'CONJUNTO',
   aberto: 'ABERTO',
   medio: 'MÉDIO',
   americano: 'AMERICANO',
@@ -25,6 +26,7 @@ export const SHOT_TAG: Record<ShotType, string> = {
   detalhe: 'DETALHE',
   pov: 'POV',
   ots: 'OTS',
+  motion: 'MOTION',
 }
 
 export const MOVE_TAG: Record<CameraMove, string> = {
@@ -32,11 +34,14 @@ export const MOVE_TAG: Record<CameraMove, string> = {
   pan: 'PAN',
   tilt: 'TILT',
   dolly: 'DOLLY',
+  'push-in': 'PUSH-IN',
   tracking: 'TRAVELLING',
   truck: 'TRUCK',
   zoom: 'ZOOM',
+  'zoom-out': 'ZOOM OUT',
   handheld: 'NA MÃO',
   crane: 'GRUA',
+  'time-lapse': 'TIME-LAPSE',
 }
 
 /** Splits "LOCUÇÃO: Texto" into who speaks and the line. A line without a speaker keeps the whole text. */

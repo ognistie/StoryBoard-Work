@@ -159,8 +159,10 @@ export function SceneNode({ data }: NodeProps<SceneNodeType>) {
         </div>
       </div>
 
-      <Handle type="target" position={Position.Left} isConnectable={false} className={cx(portClass(data.activeIn), !data.hasIn && '!hidden')} style={{ top: PORT_TOP }} />
-      <Handle type="source" position={Position.Right} isConnectable={false} className={cx(portClass(data.activeOut), !data.hasOut && '!hidden')} style={{ top: PORT_TOP }} />
+      <Handle id="in" type="target" position={Position.Left} isConnectable={false} className={cx(portClass(data.activeIn), !data.hasIn && '!hidden')} style={{ top: PORT_TOP }} />
+      <Handle id="out" type="source" position={Position.Right} isConnectable={false} className={cx(portClass(data.activeOut), !data.hasOut && '!hidden')} style={{ top: PORT_TOP }} />
+      {/* Where the briefing's dashed link lands on the first scene; under the briefing's own port when neither has moved. */}
+      <Handle id="brief" type="target" position={Position.Top} isConnectable={false} className="!size-px !min-h-0 !min-w-0 !border-0 !bg-transparent" style={{ left: 110, top: 5 }} />
 
       <NodeResizeControl
         position="bottom-left"

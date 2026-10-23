@@ -7,6 +7,7 @@ import { MOVE_LABEL, SHOT_LABEL } from '../../lib/context'
 import { db } from '../../lib/db'
 import { useWD } from './context'
 import { parseDialogue } from './scene'
+import type { Project } from '../../lib/types'
 
 function download(name: string, data: Blob) {
   const a = document.createElement('a')
@@ -15,6 +16,9 @@ function download(name: string, data: Blob) {
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 5000)
 }
+
+// Vertical drawings need more columns to fit an A4 landscape page.
+const PRINT_COLUMNS: Record<Project['aspect'], number> = { '9:16': 5, '1:1': 4, '16:9': 3, '2.39:1': 3 }
 
 const slug = (s: string) =>
   s
@@ -66,7 +70,7 @@ export function ExportMenu() {
       return img ? { id, width: img.width, height: img.height, data: await toData(img.blob) } : null
     }))
     const payload = {
-      format: 'frameline-project@1',
+      format: 'decupa-project@1',
       exportedAt: new Date().toISOString(),
       project,
       scenes: await db.scenes.where('projectId').equals(project.id).toArray(),
@@ -80,7 +84,7 @@ export function ExportMenu() {
       events: await db.events.where('projectId').equals(project.id).toArray(),
       images: images.filter(Boolean),
     }
-    download(`${slug(project.name)}.frameline.json`, new Blob([JSON.stringify(payload)], { type: 'application/json' }))
+    download(`${slug(project.name)}.decupa.json`, new Blob([JSON.stringify(payload)], { type: 'application/json' }))
     toast('Pacote do projeto exportado', { tone: 'ok' })
   }
 
@@ -121,25 +125,40 @@ export function ExportMenu() {
       </Menu>
       {printing &&
         createPortal(
-          <div className="print-root print-only bg-white p-6 text-black">
-            <h1 className="text-xl font-semibold">{project.name}</h1>
-            <p className="mb-4 text-[12px] text-neutral-600">
-              {project.client} · {project.producer} · {new Date().toLocaleDateString('pt-BR')} · {ordered.length} cenas
+          <div className="print-root print-only bg-white font-sans text-[#18181B]">
+            <header className="flex items-baseline justify-between border-b border-[#E4E4E7] pb-3">
+              <span className="font-display text-[26px] leading-8">Decupa</span>
+              <span className="text-[11px] text-[#71717B]">{new Date().toLocaleDateString('pt-BR')}</span>
+            </header>
+            <h1 className="mt-4 text-[22px] leading-7 font-medium tracking-[-0.02em]">{project.name}</h1>
+            <p className="mt-0.5 text-[12px] text-[#71717B]">
+              {ordered.length} cenas · {ordered.reduce((sum, f) => sum + f.duration, 0)}s · {project.aspect}
             </p>
-            <div className="grid grid-cols-3 gap-4">
-              {ordered.map((f, i) => (
-                <div key={f.id} className="break-inside-avoid">
-                  <FrameImage imageId={f.imageId} alt="" aspect={(f.aspect ?? project.aspect).replace(':', ' / ')} className="border border-neutral-300" />
-                  <div className="mt-1 text-[11px] font-semibold">
-                    {String(i + 1).padStart(2, '0')} · {f.title}
+            {briefing && <p className="mt-3 max-w-[70%] text-[11px] leading-4 text-[#3F3F46]">{briefing.text}</p>}
+            <div className="mt-5 grid gap-4" style={{ gridTemplateColumns: `repeat(${PRINT_COLUMNS[project.aspect]}, minmax(0, 1fr))` }}>
+              {ordered.map((f, i) => {
+                const { speaker, line } = parseDialogue(f.dialogue)
+                return (
+                  <div key={f.id} className="break-inside-avoid">
+                    <FrameImage imageId={f.imageId} alt="" aspect={(f.aspect ?? project.aspect).replace(':', ' / ')} className="rounded-[10px] border border-[#E4E4E7]" />
+                    <div className="mt-2 flex items-baseline justify-between gap-2 text-[11px] leading-[14px] font-medium">
+                      <span>
+                        Cena {i + 1} · {f.title}
+                      </span>
+                      <span className="text-[#71717B]">{f.duration}s</span>
+                    </div>
+                    <div className="mt-0.5 text-[9px] leading-3 tracking-[0.04em] text-[#71717B] uppercase">
+                      {SHOT_LABEL[f.shot]} · {MOVE_LABEL[f.movement]}
+                    </div>
+                    <p className="mt-1 text-[10px] leading-[14px] text-[#3F3F46]">{f.description}</p>
+                    {line && (
+                      <p className="mt-1 text-[10px] leading-[14px]">
+                        {speaker && <span className="text-[#71717B]">{speaker}: </span>}“{line}”
+                      </p>
+                    )}
                   </div>
-                  <div className="text-[10px] text-neutral-600">
-                    {SHOT_LABEL[f.shot]} · {MOVE_LABEL[f.movement]} · {f.duration}s
-                  </div>
-                  <div className="text-[10px]">{f.description}</div>
-                  {f.dialogue && <div className="text-[10px] whitespace-pre-line italic">{f.dialogue}</div>}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>,
           document.body,

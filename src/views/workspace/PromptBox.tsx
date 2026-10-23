@@ -13,8 +13,9 @@ const SHORTCUTS: { focus: ReviseFocus; label: string }[] = [
 /**
  * The glass box at the bottom that rewrites the selected scene.
  * A shortcut sends at once: with text it limits what may change, without text its label is the request.
+ * `compact` is the phone layout: smaller type, and shortcuts that scroll sideways.
  */
-export function PromptBox() {
+export function PromptBox({ compact = false }: { compact?: boolean }) {
   const { ordered, userId } = useWD()
   const selectedId = useWS((s) => s.selectedId)
   const index = ordered.findIndex((f) => f.id === selectedId)
@@ -42,7 +43,12 @@ export function PromptBox() {
   }
 
   return (
-    <div className="glass flex flex-col gap-[18px] rounded-[26px] !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A] pt-5 pr-4 pb-4 pl-6">
+    <div
+      className={cx(
+        'glass flex flex-col !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A]',
+        compact ? 'gap-3 rounded-[24px] pt-3.5 pr-3 pb-3 pl-4' : 'gap-[18px] rounded-[26px] pt-5 pr-4 pb-4 pl-6',
+      )}
+    >
       <div className="flex items-center gap-2">
         {frame && (
           <span className="flex h-6 shrink-0 items-center gap-1.5 rounded-[7px] bg-[#0071E31A] px-[9px]">
@@ -55,7 +61,7 @@ export function PromptBox() {
             </span>
           </span>
         )}
-        <span className="truncate text-[13px] leading-4 text-faint">{frame ? 'Descreva o que mudar nesta cena' : 'Selecione uma cena no canvas'}</span>
+        {!(compact && frame) && <span className="truncate text-[13px] leading-4 text-faint">{frame ? 'Descreva o que mudar nesta cena' : 'Selecione uma cena no canvas'}</span>}
       </div>
       <textarea
         rows={1}
@@ -73,16 +79,25 @@ export function PromptBox() {
           }
         }}
         aria-label="O que mudar nesta cena"
-        className="resize-none bg-transparent text-[18px] leading-[26px] text-[#1D1D1F] outline-none"
+        placeholder={compact && frame ? 'Descreva o que mudar nesta cena' : undefined}
+        className={cx('resize-none bg-transparent text-[#1D1D1F] outline-none placeholder:text-faint', compact ? 'text-[16px] leading-[22px]' : 'text-[18px] leading-[26px]')}
       />
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className={cx('flex items-center justify-between', compact ? 'gap-2' : 'gap-3')}>
+        <div
+          className={cx(
+            'flex min-w-0 items-center gap-1.5',
+            compact ? 'flex-1 overflow-x-auto [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_82%,transparent)] [&::-webkit-scrollbar]:hidden' : 'flex-wrap',
+          )}
+        >
           {SHORTCUTS.map((s) => (
             <button
               key={s.focus}
               disabled={!frame || !!busy}
               onClick={() => void send(s.focus, s.label)}
-              className="flex h-9 items-center gap-1.5 rounded-[18px] border border-white/75 bg-white/55 px-3.5 text-[14px] leading-[18px] font-medium whitespace-nowrap text-black shadow-[inset_0_1px_0_#FFFFFFE6,0_0_0_1px_#0000000F] transition-colors hover:bg-white/85 disabled:opacity-50"
+              className={cx(
+                'flex shrink-0 items-center gap-1.5 font-medium whitespace-nowrap text-black shadow-[inset_0_1px_0_#FFFFFFE6,0_0_0_1px_#0000000F] transition-colors hover:bg-white/85 disabled:opacity-50',
+                compact ? 'h-8 rounded-2xl border border-white/75 bg-white/55 px-3 text-[13px] leading-4' : 'h-9 rounded-[18px] border border-white/75 bg-white/55 px-3.5 text-[14px] leading-[18px]',
+              )}
             >
               {busy === s.focus && <Spinner className="size-3.5" />}
               {s.label}
@@ -93,7 +108,12 @@ export function PromptBox() {
           aria-label="Refazer cena"
           disabled={!frame || !!busy || !text.trim()}
           onClick={() => void send('all')}
-          className={cx('flex size-11 shrink-0 items-center justify-center rounded-full bg-accent transition-[background-color,opacity] hover:bg-[#0077ed]', busy !== 'all' && 'disabled:opacity-40')}
+          className={cx(
+            'relative flex shrink-0 items-center justify-center rounded-full bg-accent transition-[background-color,opacity] hover:bg-[#0077ed]',
+            // 40px on a phone, with a 44px touch target.
+            compact ? 'size-10 after:absolute after:-inset-0.5 after:content-[""]' : 'size-11',
+            busy !== 'all' && 'disabled:opacity-40',
+          )}
         >
           {busy === 'all' ? (
             <Spinner className="text-white" />

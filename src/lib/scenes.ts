@@ -6,7 +6,7 @@ import { commitFrame, putImage, saveDoc, StaleRevisionError, updateFrame } from 
 import { assertCan, roleIn } from './session'
 import { sketchToBlob } from './sketch'
 import { specFromDescription } from './sketchOps'
-import type { AIRecord, Frame, FrameContent, RevisionKind } from './types'
+import type { AIRecord, Frame, FrameContent, Project, RevisionKind } from './types'
 
 // A "cena" in the Decupa UI is a Frame in the data model.
 
@@ -48,9 +48,17 @@ export function changesDrawing(before: SceneFields, after: SceneFields): boolean
   return VISUAL_FIELDS.some((k) => before[k] !== after[k])
 }
 
+/** Only a drawing from the local renderer may be replaced. A real image (no sketch spec) always stays. */
+export function canRedraw(frame: Pick<FrameContent, 'sketch' | 'imageId'>): boolean {
+  return !!frame.sketch || !frame.imageId
+}
+
+/** Said on the revision when the text asked for a new drawing but the scene keeps its real image. */
+export const KEPT_IMAGE_NOTE = 'Desenho mantido: imagem original.'
+
 /** Draws a scene with the local sketch renderer. The app never generates images with AI. */
-export async function drawScene(scene: Pick<SceneFields, 'description' | 'action' | 'shot'>): Promise<Pick<FrameContent, 'sketch' | 'imageId'>> {
-  const sketch = specFromDescription(`${scene.description} ${scene.action}`, { shot: scene.shot })
+export async function drawScene(scene: Pick<SceneFields, 'description' | 'action' | 'shot' | 'movement'>, aspect: Project['aspect']): Promise<Pick<FrameContent, 'sketch' | 'imageId'>> {
+  const sketch = specFromDescription(`${scene.description} ${scene.action}`, { shot: scene.shot, movement: scene.movement, aspect })
   const image = await sketchToBlob(sketch)
   return { sketch, imageId: await putImage(image.blob, image.width, image.height) }
 }
@@ -70,10 +78,13 @@ function aiRecord(instruction: string, basePrompt: string, latencyMs: number, su
   return { instruction, basePrompt, structuredPrompt: '', provider: openaiProvider.label, model: openaiProvider.model, isDemo: false, contextRefs: [], latencyMs, summary }
 }
 
-async function commitSceneVersion(frame: Frame, fields: SceneFields, redraw: boolean, userId: string, message: string, kind: RevisionKind, ai: AIRecord) {
-  const drawing = redraw ? await drawScene(fields) : {}
+/** Saves `fields` as a new version. When the visual fields changed, redraws the scene unless its image is a real one. */
+async function commitSceneVersion(frame: Frame, project: Project, fields: SceneFields, wantsRedraw: boolean, userId: string, message: string, kind: RevisionKind, ai: AIRecord) {
+  const redraw = wantsRedraw && canRedraw(frame)
+  const drawing = redraw ? await drawScene(fields, frame.aspect ?? project.aspect) : {}
+  const summary = wantsRedraw && !redraw ? [ai.summary, KEPT_IMAGE_NOTE].filter(Boolean).join(' ') : ai.summary
   await updateFrame(frame.id, userId, { ...fields, ...drawing })
-  await commitFrame(frame.id, userId, message, kind, { ai })
+  await commitFrame(frame.id, userId, message, kind, { ai: { ...ai, summary } })
 }
 
 /** Rewrites one scene from a short instruction. Creates a new revision (kind 'ai-edit') whose message is the instruction. */
@@ -110,9 +121,9 @@ export async function reviseScene(input: { frameId: string; instruction: string;
   // The model took seconds; someone may have saved a version meanwhile.
   if ((await db.frames.get(frame.id))?.headRevisionId !== frame.headRevisionId) throw new StaleRevisionError()
 
-  // "Só o diálogo" and "Mais curta" keep the drawing, including the real images of the demo projects.
-  const redraw = (input.focus === 'all' || input.focus === 'drawing') && changesDrawing(current, next)
-  await commitSceneVersion(frame, next, redraw, input.userId, instruction, 'ai-edit', aiRecord(instruction, frame.description, latencyMs, response.summary))
+  // "Só o diálogo" and "Mais curta" never touch the drawing.
+  const wantsRedraw = (input.focus === 'all' || input.focus === 'drawing') && changesDrawing(current, next)
+  await commitSceneVersion(frame, project, next, wantsRedraw, input.userId, instruction, 'ai-edit', aiRecord(instruction, frame.description, latencyMs, response.summary))
 }
 
 /**
@@ -158,7 +169,7 @@ export async function applyBriefingChange(input: { projectId: string; briefing: 
     const frame = byId.get(change.id)!
     const current = sceneFieldsOf(frame)
     if (!changedSceneFields(current, change.scene).length) continue
-    await commitSceneVersion(frame, change.scene, changesDrawing(current, change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, frame.description, latencyMs, change.reason))
+    await commitSceneVersion(frame, project, change.scene, changesDrawing(current, change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, frame.description, latencyMs, change.reason))
     changed.push(frame.id)
   }
   return changed

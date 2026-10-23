@@ -1,4 +1,4 @@
-import type { HairStyle, Outfit, ShotType, SketchPerson, SketchSpec } from './types'
+import type { HairStyle, Outfit, Project, ShotType, SketchPerson, SketchSpec } from './types'
 
 /**
  * Local, deterministic storyboard renderer used by the demo provider.
@@ -13,6 +13,51 @@ import type { HairStyle, Outfit, ShotType, SketchPerson, SketchSpec } from './ty
 
 export const SKETCH_W = 1280
 export const SKETCH_H = 720
+
+/** Things a storyboard frame can show, read from the scene text by specFromDescription. */
+export type SketchSubject =
+  | 'hands'
+  | 'phone'
+  | 'laptop'
+  | 'desk'
+  | 'cup'
+  | 'grinder'
+  | 'paper'
+  | 'formula'
+  | 'chart'
+  | 'logo'
+  | 'blocks'
+  | 'window'
+  | 'product'
+  | 'shop'
+  | 'street'
+
+/**
+ * A spec drawn by the storyboard composer. Specs without `subjects` (older demo specs)
+ * still render through the original scene renderer.
+ */
+export interface StoryboardSpec extends SketchSpec {
+  /** Most important first. */
+  subjects?: SketchSubject[]
+  /** A CameraMove id. Draws the red camera arrow; unknown ids and 'estatico' draw none. */
+  movement?: string
+  /** The frame's format. Unset renders 16:9. */
+  aspect?: Project['aspect']
+}
+
+/** Pixel size of the rendered frame for a format. */
+export function sketchSize(aspect?: Project['aspect']): { width: number; height: number } {
+  switch (aspect) {
+    case '9:16':
+      return { width: 720, height: 1280 }
+    case '1:1':
+      return { width: 1024, height: 1024 }
+    case '2.39:1':
+      return { width: 1280, height: 536 }
+    default:
+      return { width: SKETCH_W, height: SKETCH_H }
+  }
+}
 
 const INK = '#1b1a18'
 const PENCIL = '#66625b'
@@ -206,8 +251,9 @@ class Pen {
 
 // ---------------------------------------------------------------- framing
 
-const SHOT_SCALE: Record<ShotType, number> = {
+const SHOT_SCALE: Partial<Record<ShotType, number>> = {
   geral: 0.3,
+  conjunto: 0.42,
   aberto: 0.42,
   americano: 1.05,
   medio: 1.4,
@@ -221,8 +267,9 @@ const SHOT_SCALE: Record<ShotType, number> = {
 /** Where the head center lands for tight shots (fraction of frame height). */
 const HEAD_Y: Partial<Record<ShotType, number>> = { americano: 0.22, medio: 0.27, ots: 0.3, close: 0.42, 'extreme-close': 0.5 }
 
-const BG_ZOOM: Record<ShotType, number> = {
+const BG_ZOOM: Partial<Record<ShotType, number>> = {
   geral: 0.85,
+  conjunto: 1,
   aberto: 1,
   americano: 1.3,
   medio: 1.55,
@@ -235,7 +282,11 @@ const BG_ZOOM: Record<ShotType, number> = {
 
 // ---------------------------------------------------------------- main
 
-export function renderSketch(ctx: Ctx, spec: SketchSpec, w = SKETCH_W, h = SKETCH_H) {
+export function renderSketch(ctx: Ctx, spec: StoryboardSpec, w = SKETCH_W, h = SKETCH_H) {
+  if (spec.subjects) {
+    composeStoryboard(ctx, spec, w, h)
+    return
+  }
   const s = w / 960
   const pen = new Pen(ctx, spec.seed, s)
   ctx.save()
@@ -260,7 +311,7 @@ export function renderSketch(ctx: Ctx, spec: SketchSpec, w = SKETCH_W, h = SKETC
   ctx.restore()
   ctx.globalAlpha = 1
 
-  if (spec.shot === 'detalhe') {
+  if (spec.shot === 'detalhe' || spec.shot === 'motion') {
     drawDetail(pen, spec, w, h)
   } else {
     for (const prop of spec.props) drawProp(pen, prop, w, h, horizon, interior)
@@ -938,25 +989,532 @@ function drawFace(p: Pen, expression: string, fx: number, hy: number, rx: number
   else p.ellipse(fx, my - ry * 0.12, mw, ry * 0.16, { color: INK, w: lw * 0.8, passes: 1 }, 0.25, Math.PI - 0.25)
 }
 
+// ---------------------------------------------------------------- storyboard composer
+// Draws a scene from its subjects in the style of the demo boards: fine black line,
+// light grey tones, blue only on key objects, red only on the camera arrow.
+
+const GREY = '#f0efec'
+const GREY_2 = '#dddbd6'
+const BLUE = '#5274ff'
+const RED = '#d7402f'
+
+type Box = { x: number; y: number; w: number; h: number }
+type Framing = 'tight' | 'mid' | 'wide' | 'flat'
+type ObjectSubject = Exclude<SketchSubject, 'hands' | 'desk' | 'window' | 'shop' | 'street'>
+
+const FRAMING: Partial<Record<ShotType, Framing>> = {
+  detalhe: 'tight',
+  'extreme-close': 'tight',
+  close: 'tight',
+  medio: 'mid',
+  americano: 'mid',
+  ots: 'mid',
+  pov: 'mid',
+  aberto: 'wide',
+  geral: 'wide',
+  conjunto: 'wide',
+  motion: 'flat',
+}
+
+/** Objects that sit on a table; the others hang on a wall or float. */
+const ON_TABLE: ObjectSubject[] = ['phone', 'laptop', 'cup', 'grinder', 'paper', 'formula', 'product']
+const LINE = { color: INK, w: 2.2 }
+const THIN = { color: INK, w: 1.3, passes: 1 }
+const SOFT = { color: LIGHT, w: 1.2, passes: 1 }
+
+function isObject(s: SketchSubject): s is ObjectSubject {
+  return s !== 'hands' && s !== 'desk' && s !== 'window' && s !== 'shop' && s !== 'street'
+}
+
+/** Largest rect with ratio `ratio` (width / height) centred in `box`. */
+function fit(box: Box, ratio: number): Box {
+  const w = Math.min(box.w, box.h * ratio)
+  const h = w / ratio
+  return { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h }
+}
+
+function roundRect(x: number, y: number, w: number, h: number, r: number): Pt[] {
+  const k = Math.min(r, w / 2, h / 2)
+  const pts: Pt[] = []
+  const corner = (cx: number, cy: number, from: number) => {
+    for (let i = 0; i <= 4; i++) {
+      const a = from + (Math.PI / 2) * (i / 4)
+      pts.push([cx + Math.cos(a) * k, cy + Math.sin(a) * k])
+    }
+  }
+  corner(x + w - k, y + k, -Math.PI / 2)
+  corner(x + w - k, y + h - k, 0)
+  corner(x + k, y + h - k, Math.PI / 2)
+  corner(x + k, y + k, Math.PI)
+  return pts
+}
+
+function arrowHead(p: Pen, x: number, y: number, angle: number, size: number, color = RED) {
+  const a1 = angle + Math.PI * 0.82
+  const a2 = angle - Math.PI * 0.82
+  p.path([[x + Math.cos(a1) * size, y + Math.sin(a1) * size], [x, y], [x + Math.cos(a2) * size, y + Math.sin(a2) * size]], false, { color, w: 3, passes: 1, sharp: true })
+}
+
+function arrow(p: Pen, pts: Pt[], color = RED) {
+  p.path(pts, false, { color, w: 3, passes: 1, jitter: 0.6 })
+  const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]]
+  arrowHead(p, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), 16 * p.s, color)
+}
+
+// ----- objects. Each fills its box and returns where a hand would touch it.
+
+const OBJECT_RATIO: Record<ObjectSubject, number> = {
+  phone: 0.52,
+  laptop: 1.35,
+  cup: 1.15,
+  grinder: 0.78,
+  paper: 0.78,
+  formula: 1.1,
+  chart: 1.45,
+  logo: 1.7,
+  blocks: 1.3,
+  product: 0.85,
+}
+
+function drawPhone(p: Pen, b: Box): Pt {
+  p.path(roundRect(b.x, b.y, b.w, b.h, b.w * 0.14), true, { ...LINE, fill: PAPER, sharp: true })
+  const i = b.w * 0.08
+  p.path(roundRect(b.x + i, b.y + i * 1.6, b.w - i * 2, b.h - i * 3.2, b.w * 0.06), true, { ...THIN, fill: GREY, sharp: true })
+  p.path(roundRect(b.x + i * 2, b.y + b.h * 0.14, b.w - i * 4, b.h * 0.1, b.w * 0.05), true, { ...THIN, fill: BLUE, sharp: true })
+  for (let k = 0; k < 4; k++) p.line(b.x + i * 2, b.y + b.h * (0.34 + k * 0.08), b.x + b.w * (k % 2 ? 0.6 : 0.78), b.y + b.h * (0.34 + k * 0.08), SOFT)
+  return [b.x + b.w * 0.5, b.y + b.h * 0.9]
+}
+
+function drawLaptop(p: Pen, b: Box): Pt {
+  const sx = b.x + b.w * 0.1
+  const sw = b.w * 0.8
+  const sh = b.h * 0.62
+  p.path(roundRect(sx, b.y, sw, sh, b.w * 0.03), true, { ...LINE, fill: PAPER, sharp: true })
+  p.rect(sx + sw * 0.06, b.y + sh * 0.08, sw * 0.88, sh * 0.8, { ...THIN, fill: GREY })
+  // a small chart on screen, one blue bar
+  const base = b.y + sh * 0.78
+  for (let k = 0; k < 4; k++) {
+    const bh = sh * (0.18 + 0.1 * k)
+    p.rect(sx + sw * (0.16 + k * 0.17), base - bh, sw * 0.1, bh, { ...THIN, fill: k === 3 ? BLUE : PAPER })
+  }
+  p.path([[b.x, b.y + b.h * 0.66], [b.x + b.w, b.y + b.h * 0.66], [b.x + b.w * 1.04, b.y + b.h * 0.9], [b.x - b.w * 0.04, b.y + b.h * 0.9]], true, { ...LINE, fill: GREY_2, sharp: true })
+  for (let k = 1; k < 4; k++) p.line(b.x + b.w * 0.06, b.y + b.h * (0.66 + k * 0.055), b.x + b.w * 0.94, b.y + b.h * (0.66 + k * 0.055), SOFT)
+  return [b.x + b.w * 0.5, b.y + b.h * 0.78]
+}
+
+function drawCup(p: Pen, b: Box): Pt {
+  const cx = b.x + b.w * 0.46
+  p.ellipse(cx, b.y + b.h * 0.9, b.w * 0.46, b.h * 0.08, { ...LINE, fill: GREY })
+  const top = b.y + b.h * 0.38
+  const rw = b.w * 0.3
+  p.path([[cx - rw, top], [cx + rw, top], [cx + rw * 0.86, b.y + b.h * 0.8], [cx, b.y + b.h * 0.86], [cx - rw * 0.86, b.y + b.h * 0.8]], true, { ...LINE, fill: PAPER })
+  p.ellipse(cx, top, rw, b.h * 0.06, { ...LINE, fill: GREY_2 })
+  p.ellipse(cx + rw * 1.12, b.y + b.h * 0.56, rw * 0.32, b.h * 0.11, { ...LINE, w: 2 })
+  for (let k = -1; k <= 1; k++) {
+    const x = cx + k * rw * 0.45
+    p.path([[x, top - b.h * 0.06], [x + b.w * 0.04, top - b.h * 0.14], [x - b.w * 0.03, top - b.h * 0.22], [x + b.w * 0.02, top - b.h * 0.3]], false, SOFT)
+  }
+  return [cx + rw * 1.3, b.y + b.h * 0.56]
+}
+
+function drawGrinder(p: Pen, b: Box): Pt {
+  const bodyY = b.y + b.h * 0.42
+  p.rect(b.x + b.w * 0.12, bodyY, b.w * 0.76, b.h * 0.5, { ...LINE, fill: GREY })
+  p.rect(b.x + b.w * 0.3, bodyY + b.h * 0.24, b.w * 0.4, b.h * 0.14, { ...THIN, fill: PAPER })
+  p.ellipse(b.x + b.w * 0.5, bodyY + b.h * 0.31, b.w * 0.03, b.w * 0.03, { ...THIN, fill: INK })
+  p.path([[b.x + b.w * 0.22, bodyY], [b.x + b.w * 0.78, bodyY], [b.x + b.w * 0.68, b.y + b.h * 0.3], [b.x + b.w * 0.32, b.y + b.h * 0.3]], true, { ...LINE, fill: PAPER, sharp: true })
+  // crank
+  const shaftX = b.x + b.w * 0.5
+  const shaftTop = b.y + b.h * 0.16
+  p.line(shaftX, b.y + b.h * 0.3, shaftX, shaftTop, LINE)
+  p.line(shaftX, shaftTop, b.x + b.w * 0.92, shaftTop + b.h * 0.02, LINE)
+  const knob: Pt = [b.x + b.w * 0.92, shaftTop - b.h * 0.05]
+  p.ellipse(knob[0], knob[1], b.w * 0.05, b.h * 0.05, { ...LINE, fill: PAPER })
+  // beans
+  for (let k = 0; k < 7; k++) {
+    const x = b.x + b.w * (0.02 + p.rnd() * 0.96)
+    const y = b.y + b.h * (0.95 + p.rnd() * 0.05)
+    p.ellipse(x, y, b.w * 0.028, b.w * 0.018, { ...THIN, fill: GREY_2 })
+  }
+  return knob
+}
+
+function drawPaper(p: Pen, b: Box): Pt {
+  p.path([[b.x + b.w * 0.04, b.y], [b.x + b.w, b.y + b.h * 0.03], [b.x + b.w * 0.96, b.y + b.h], [b.x, b.y + b.h * 0.97]], true, { ...LINE, fill: PAPER, sharp: true })
+  for (let k = 0; k < 7; k++) {
+    const y = b.y + b.h * (0.16 + k * 0.1)
+    p.line(b.x + b.w * 0.14, y, b.x + b.w * (k % 3 === 2 ? 0.55 : 0.84), y + b.h * 0.005, SOFT)
+  }
+  return [b.x + b.w * 0.66, b.y + b.h * 0.62]
+}
+
+function drawFormula(p: Pen, b: Box): Pt {
+  p.path([[b.x + b.w * 0.02, b.y + b.h * 0.04], [b.x + b.w, b.y], [b.x + b.w * 0.98, b.y + b.h], [b.x, b.y + b.h * 0.96]], true, { ...THIN, fill: PAPER, sharp: true })
+  const c = p.ctx
+  c.save()
+  c.fillStyle = INK
+  c.font = `italic 500 ${Math.min(b.h * 0.34, b.w * 0.19)}px "Instrument Serif", Georgia, serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText('P = E / t', b.x + b.w * 0.47, b.y + b.h * 0.46)
+  c.restore()
+  // the stroke turning into a blue pill, as in the iugu board
+  p.path(roundRect(b.x + b.w * 0.58, b.y + b.h * 0.7, b.w * 0.26, b.h * 0.1, b.h * 0.05), true, { ...THIN, fill: BLUE, sharp: true })
+  p.line(b.x + b.w * 0.2, b.y + b.h * 0.75, b.x + b.w * 0.58, b.y + b.h * 0.75, THIN)
+  return [b.x + b.w * 0.86, b.y + b.h * 0.74]
+}
+
+function drawChart(p: Pen, b: Box): Pt {
+  p.path(roundRect(b.x, b.y, b.w, b.h, b.w * 0.02), true, { ...LINE, fill: PAPER, sharp: true })
+  const ix = b.x + b.w * 0.1
+  const iy = b.y + b.h * 0.86
+  p.line(ix, b.y + b.h * 0.14, ix, iy, THIN)
+  p.line(ix, iy, b.x + b.w * 0.92, iy, THIN)
+  for (let k = 0; k < 5; k++) {
+    const bh = b.h * (0.16 + 0.11 * ((k * 7) % 5))
+    p.rect(ix + b.w * (0.06 + k * 0.15), iy - bh, b.w * 0.09, bh, { ...THIN, fill: k === 4 ? BLUE : GREY })
+  }
+  p.path([[ix, b.y + b.h * 0.6], [ix + b.w * 0.25, b.y + b.h * 0.48], [ix + b.w * 0.5, b.y + b.h * 0.52], [ix + b.w * 0.78, b.y + b.h * 0.24]], false, { color: INK, w: 1.8, passes: 1 })
+  return [b.x + b.w * 0.92, b.y + b.h * 0.9]
+}
+
+function drawLogo(p: Pen, b: Box): Pt {
+  const k = b.h * 0.72
+  const sx = b.x + b.w * 0.06
+  const sy = b.y + (b.h - k) / 2
+  p.path(roundRect(sx, sy, k, k, k * 0.26), true, { ...LINE, fill: BLUE, sharp: true })
+  p.ellipse(sx + k / 2, sy + k / 2, k * 0.24, k * 0.24, { color: PAPER, w: 3, passes: 1 }, Math.PI * 0.2, Math.PI * 1.7)
+  p.rect(sx + k * 0.43, sy + k * 0.43, k * 0.14, k * 0.14, { color: PAPER, w: 2, passes: 1, fill: PAPER })
+  const tx = sx + k * 1.25
+  p.path(roundRect(tx, b.y + b.h * 0.34, b.w * 0.42, b.h * 0.14, b.h * 0.07), true, { ...THIN, fill: INK, sharp: true })
+  p.path(roundRect(tx, b.y + b.h * 0.56, b.w * 0.3, b.h * 0.08, b.h * 0.04), true, { ...THIN, fill: GREY_2, sharp: true })
+  return [b.x + b.w * 0.5, b.y + b.h]
+}
+
+function drawBlocks(p: Pen, b: Box): Pt {
+  const cols = 3
+  const rows = 2
+  const gap = b.w * 0.04
+  const cw = (b.w - gap * (cols - 1)) / cols
+  const ch = (b.h * 0.72 - gap * (rows - 1)) / rows
+  const top = b.y + b.h * 0.28
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const blue = (r + c) % 3 === 1
+      p.path(roundRect(b.x + c * (cw + gap), top + r * (ch + gap), cw, ch, Math.min(cw, ch) * 0.22), true, { ...LINE, fill: blue ? BLUE : GREY, sharp: true })
+    }
+  // two loose pills about to click in
+  p.path(roundRect(b.x + b.w * 0.08, b.y, b.w * 0.34, b.h * 0.12, b.h * 0.06), true, { ...THIN, fill: GREY, sharp: true })
+  p.path(roundRect(b.x + b.w * 0.56, b.y + b.h * 0.06, b.w * 0.3, b.h * 0.12, b.h * 0.06), true, { ...THIN, fill: BLUE, sharp: true })
+  for (const x of [0.25, 0.71]) p.line(b.x + b.w * x, b.y + b.h * 0.16, b.x + b.w * x, b.y + b.h * 0.24, SOFT)
+  return [b.x + b.w * 0.5, b.y + b.h * 0.6]
+}
+
+function drawProduct(p: Pen, b: Box): Pt {
+  const d = b.w * 0.18
+  const fx = b.x
+  const fy = b.y + d
+  const fw = b.w - d
+  const fh = b.h - d
+  p.path([[fx, fy], [fx + d, b.y], [fx + fw + d, b.y], [fx + fw, fy]], true, { ...LINE, fill: GREY, sharp: true })
+  p.path([[fx + fw, fy], [fx + fw + d, b.y], [fx + fw + d, b.y + fh], [fx + fw, fy + fh]], true, { ...LINE, fill: GREY_2, sharp: true })
+  p.rect(fx, fy, fw, fh, { ...LINE, fill: PAPER })
+  p.rect(fx, fy + fh * 0.38, fw, fh * 0.22, { ...THIN, fill: BLUE })
+  p.line(fx + fw * 0.15, fy + fh * 0.75, fx + fw * 0.7, fy + fh * 0.75, SOFT)
+  return [fx + fw, fy + fh * 0.5]
+}
+
+const DRAW_OBJECT: Record<ObjectSubject, (p: Pen, b: Box) => Pt> = {
+  phone: drawPhone,
+  laptop: drawLaptop,
+  cup: drawCup,
+  grinder: drawGrinder,
+  paper: drawPaper,
+  formula: drawFormula,
+  chart: drawChart,
+  logo: drawLogo,
+  blocks: drawBlocks,
+  product: drawProduct,
+}
+
+function drawObject(p: Pen, subject: ObjectSubject, area: Box, bottom?: number): Pt {
+  const b = fit(area, OBJECT_RATIO[subject])
+  // objects on a table rest on its edge instead of floating in the middle of their area
+  if (bottom !== undefined) b.y = bottom - b.h
+  return DRAW_OBJECT[subject](p, b)
+}
+
+// ----- environment
+
+function drawWindow(p: Pen, b: Box, night: boolean) {
+  p.rect(b.x, b.y, b.w, b.h, { ...LINE, fill: night ? '#e4e3df' : PAPER })
+  p.line(b.x + b.w / 2, b.y, b.x + b.w / 2, b.y + b.h, THIN)
+  p.line(b.x, b.y + b.h * 0.5, b.x + b.w, b.y + b.h * 0.5, THIN)
+  if (night) {
+    p.hatch(b.x, b.y, b.w, b.h, 7, { color: PENCIL, alpha: 0.45 }, 0.7)
+    p.ellipse(b.x + b.w * 0.72, b.y + b.h * 0.24, b.w * 0.09, b.w * 0.09, { ...THIN, fill: PAPER })
+  } else {
+    for (let k = 0; k < 3; k++) p.line(b.x + b.w * (0.15 + k * 0.12), b.y + b.h * 0.92, b.x + b.w * (0.4 + k * 0.12), b.y + b.h * 0.1, SOFT)
+  }
+}
+
+function drawShop(p: Pen, b: Box) {
+  p.rect(b.x, b.y + b.h * 0.24, b.w, b.h * 0.76, { ...LINE, fill: PAPER })
+  const stripes = 7
+  for (let k = 0; k < stripes; k++) {
+    const x0 = b.x - b.w * 0.04 + (b.w * 1.08 * k) / stripes
+    const x1 = x0 + (b.w * 1.08) / stripes
+    p.path([[x0, b.y + b.h * 0.08], [x1, b.y + b.h * 0.08], [x1, b.y + b.h * 0.26], [x0, b.y + b.h * 0.26]], true, { ...THIN, fill: k % 2 ? PAPER : GREY_2, sharp: true })
+  }
+  p.rect(b.x + b.w * 0.1, b.y + b.h * 0.42, b.w * 0.42, b.h * 0.34, { ...THIN, fill: GREY })
+  p.rect(b.x + b.w * 0.62, b.y + b.h * 0.4, b.w * 0.26, b.h * 0.6, { ...THIN, fill: PAPER })
+}
+
+function drawStreet(p: Pen, w: number, floorY: number, h: number) {
+  let x = -w * 0.02
+  while (x < w) {
+    const bw = w * (0.16 + p.rnd() * 0.1)
+    const bh = h * (0.22 + p.rnd() * 0.22)
+    p.rect(x, floorY - bh, bw, bh, { color: PENCIL, w: 1.4, fill: PAPER })
+    for (let y = floorY - bh + bh * 0.15; y < floorY - bh * 0.25; y += bh * 0.2) p.rect(x + bw * 0.2, y, bw * 0.2, bh * 0.1, SOFT)
+    x += bw + w * 0.02
+  }
+}
+
+function drawTable(p: Pen, w: number, top: number, h: number, x0 = 0, x1 = w) {
+  p.ctx.save()
+  p.ctx.fillStyle = GREY
+  p.ctx.fillRect(x0, top, x1 - x0, h - top)
+  p.ctx.restore()
+  p.line(x0, top, x1, top, { color: PENCIL, w: 1.8 })
+}
+
+/** Reaching hand, from an edge of the frame to a point. */
+function drawHand(p: Pen, from: Pt, to: Pt, size: number) {
+  const c = p.ctx
+  const a = Math.atan2(to[1] - from[1], to[0] - from[0])
+  const reach = Math.hypot(to[0] - from[0], to[1] - from[1])
+  const k = size
+  c.save()
+  c.translate(to[0], to[1])
+  c.rotate(a)
+  const fill = { ...LINE, fill: PAPER }
+  p.path(tube([[-reach, 0], [-k * 0.7, 0]], k * 0.62, k * 0.52), true, { ...fill, fill: GREY })
+  p.line(-k * 0.82, -k * 0.27, -k * 0.82, k * 0.27, THIN)
+  p.ellipse(-k * 0.32, 0, k * 0.46, k * 0.36, fill)
+  for (let i = 0; i < 4; i++) {
+    const y = -k * 0.22 + i * k * 0.15
+    p.path(tube([[-k * 0.05, y], [k * 0.22, y + k * 0.02], [k * 0.36, y + k * 0.08]], k * 0.13, k * 0.11), true, fill)
+  }
+  p.path(tube([[-k * 0.42, -k * 0.28], [-k * 0.12, -k * 0.44], [k * 0.06, -k * 0.42]], k * 0.15, k * 0.12), true, fill)
+  c.restore()
+}
+
+// ----- framings
+
+function composeTight(p: Pen, spec: StoryboardSpec, w: number, h: number, objects: ObjectSubject[], night: boolean) {
+  const subjects = spec.subjects ?? []
+  const primary = objects[0]
+  const hands = subjects.includes('hands')
+  if (subjects.includes('window')) drawWindow(p, { x: w * 0.06, y: h * 0.05, w: w * 0.3, h: h * 0.22 }, night)
+  if (!primary) {
+    const person = spec.people[0]
+    if (person) {
+      drawPerson(p, { ...person, x: 0.5 }, w, h, 0, SHOT_SCALE.close ?? 2.1, 'close')
+      return
+    }
+    if (hands) {
+      // both hands reach into the frame
+      drawTable(p, w, h * 0.66, h)
+      drawHand(p, [-w * 0.05, h * 1.05], [w * 0.42, h * 0.62], Math.min(w, h) * 0.3)
+      drawHand(p, [w * 1.05, h * 1.05], [w * 0.6, h * 0.58], Math.min(w, h) * 0.3)
+      return
+    }
+    // only a place: show it large
+    const floorY = h * 0.82
+    if (subjects.includes('street')) drawStreet(p, w, floorY, h)
+    p.line(0, floorY, w, floorY, { color: PENCIL, w: 1.6 })
+    if (subjects.includes('shop') || !subjects.includes('street')) drawShop(p, { x: w * 0.06, y: floorY - h * 0.6, w: w * 0.88, h: h * 0.6 })
+    return
+  }
+  const onTable = ON_TABLE.includes(primary)
+  const tableTop = h * 0.7
+  if (onTable) drawTable(p, w, tableTop, h)
+  const area = spec.shot === 'detalhe' || spec.shot === 'extreme-close' ? { x: w * 0.02, y: h * 0.08, w: w * 0.96, h: h * 0.74 } : { x: w * 0.12, y: h * 0.18, w: w * 0.76, h: h * 0.58 }
+  const touch = drawObject(p, primary, area, onTable ? tableTop + h * 0.05 : undefined)
+  if (hands) {
+    const size = Math.min(w, h) * 0.26
+    if (primary === 'laptop') {
+      drawHand(p, [w * 0.1, h * 1.05], [touch[0] - w * 0.12, touch[1]], size)
+      drawHand(p, [w * 0.9, h * 1.05], [touch[0] + w * 0.12, touch[1]], size)
+    } else drawHand(p, [w * 1.05, h * 1.02], touch, size)
+  }
+}
+
+function composeMid(p: Pen, spec: StoryboardSpec, w: number, h: number, objects: ObjectSubject[], night: boolean) {
+  const subjects = spec.subjects ?? []
+  const wall = objects.find((o) => !ON_TABLE.includes(o))
+  const table = objects.filter((o) => ON_TABLE.includes(o))
+  if (subjects.includes('street')) drawStreet(p, w, h * 0.5, h)
+  if (subjects.includes('shop')) drawShop(p, { x: w * 0.55, y: h * 0.05, w: w * 0.42, h: h * 0.4 })
+  if (subjects.includes('window')) drawWindow(p, { x: w * 0.06, y: h * 0.07, w: w * 0.28, h: h * 0.3 }, night)
+  const portrait = h > w
+  if (wall) drawObject(p, wall, portrait ? { x: w * 0.6, y: h * 0.03, w: w * 0.37, h: h * 0.16 } : { x: w * 0.6, y: h * 0.06, w: w * 0.36, h: h * 0.3 })
+  const person = spec.people[0] ?? { x: 0.5, kind: 'adult', pose: 'stand', facing: 'right' }
+  drawPerson(p, { ...person, x: table.length || wall ? 0.38 : 0.5, facing: 'right' }, w, h, 0, SHOT_SCALE.medio ?? 1.4, 'medio')
+  const outdoors = subjects.includes('street') || subjects.includes('shop')
+  if (!outdoors || table.length || subjects.includes('desk')) {
+    const top = h * 0.76
+    drawTable(p, w, top, h)
+    if (table[0]) {
+      const touch = drawObject(p, table[0], { x: w * 0.56, y: h * 0.5, w: w * 0.4, h: h * 0.3 }, top + h * 0.04)
+      if (subjects.includes('hands')) drawHand(p, [w * 0.45, h * 1.05], touch, Math.min(w, h) * 0.16)
+    }
+  }
+}
+
+/** Height of a standing figure in wide shots, as a share of the frame height. */
+const WIDE_FIGURE: Partial<Record<ShotType, number>> = { geral: 0.34, conjunto: 0.46, aberto: 0.52 }
+
+function composeWide(p: Pen, spec: StoryboardSpec, w: number, h: number, objects: ObjectSubject[], night: boolean) {
+  const subjects = spec.subjects ?? []
+  const floorY = h * 0.8
+  if (subjects.includes('street')) drawStreet(p, w, floorY, h)
+  p.line(0, floorY, w, floorY, { color: PENCIL, w: 1.6 })
+  if (subjects.includes('shop')) drawShop(p, { x: w * 0.18, y: floorY - h * 0.5, w: w * 0.64, h: h * 0.5 })
+  if (subjects.includes('window')) drawWindow(p, { x: w * 0.07, y: h * 0.08, w: w * 0.24, h: h * 0.24 }, night)
+  const wall = objects.find((o) => !ON_TABLE.includes(o))
+  // above the heads: figures start at 80% − their height
+  if (wall) drawObject(p, wall, h > w ? { x: w * 0.3, y: h * 0.04, w: w * 0.66, h: h * 0.18 } : { x: w * 0.38, y: h * 0.06, w: w * 0.56, h: h * 0.22 })
+  const people = spec.people.length ? spec.people : [{ x: 0.5, kind: 'adult' as const, pose: 'stand' as const, facing: 'right' as const }]
+  // drawPerson takes its figure height as a share of the frame height
+  const scale = WIDE_FIGURE[spec.shot] ?? 0.46
+  for (const person of [...people].sort((a, b) => Math.abs(b.x - 0.5) - Math.abs(a.x - 0.5))) drawPerson(p, person, w, h, floorY - h * 0.2, scale, 'aberto')
+  // the table stands in front of the people, so they read as standing behind it
+  const table = objects.filter((o) => ON_TABLE.includes(o))
+  if (table.length || subjects.includes('desk')) {
+    const top = floorY - h * scale * 0.42
+    const x0 = w * 0.16
+    const x1 = w * 0.84
+    p.rect(x0, top, x1 - x0, h * 0.025, { ...LINE, fill: GREY })
+    p.line(x0 + w * 0.04, top + h * 0.025, x0 + w * 0.04, floorY, THIN)
+    p.line(x1 - w * 0.04, top + h * 0.025, x1 - w * 0.04, floorY, THIN)
+    table.slice(0, 2).forEach((o, i) => drawObject(p, o, { x: x0 + (x1 - x0) * (0.06 + i * 0.6), y: top - h * 0.14, w: (x1 - x0) * 0.32, h: h * 0.14 }, top))
+  }
+}
+
+/** Motion graphics: the graphic subject alone, flat and centred. Returns false when there is none. */
+function composeFlat(p: Pen, w: number, h: number, objects: ObjectSubject[]): boolean {
+  const primary = objects.find((o) => o === 'logo' || o === 'blocks' || o === 'chart' || o === 'formula') ?? objects[0]
+  if (!primary) return false
+  drawObject(p, primary, { x: w * 0.1, y: h * 0.2, w: w * 0.8, h: h * 0.6 })
+  return true
+}
+
+function drawCameraMove(p: Pen, move: string | undefined, w: number, h: number) {
+  const m = Math.min(w, h)
+  const inset = m * 0.07
+  const corners: [Pt, Pt][] = [
+    [[inset, inset], [inset + m * 0.13, inset + m * 0.13]],
+    [[w - inset, inset], [w - inset - m * 0.13, inset + m * 0.13]],
+    [[inset, h - inset], [inset + m * 0.13, h - inset - m * 0.13]],
+    [[w - inset, h - inset], [w - inset - m * 0.13, h - inset - m * 0.13]],
+  ]
+  switch (move) {
+    case 'pan':
+      arrow(p, [[w * 0.2, h * 0.08], [w * 0.5, h * 0.07], [w * 0.8, h * 0.08]])
+      break
+    case 'tilt':
+      arrow(p, [[w * 0.9, h * 0.62], [w * 0.91, h * 0.45], [w * 0.9, h * 0.28]])
+      arrowHead(p, w * 0.9, h * 0.62, Math.PI / 2, 16 * p.s)
+      break
+    case 'dolly':
+    case 'push-in':
+    case 'zoom':
+      for (const [from, to] of corners) arrow(p, [from, to])
+      break
+    case 'zoom-out':
+      for (const [from, to] of corners) arrow(p, [to, from])
+      break
+    case 'tracking':
+    case 'truck':
+      arrow(p, [[w * 0.12, h * 0.93], [w * 0.5, h * 0.94], [w * 0.88, h * 0.93]])
+      break
+    case 'crane': {
+      const pts: Pt[] = []
+      for (let i = 0; i <= 8; i++) {
+        const t = Math.PI * (0.5 + i / 16)
+        pts.push([w * 0.92 + Math.cos(t) * m * 0.06, h * 0.55 - (i / 8) * h * 0.3])
+      }
+      arrow(p, pts)
+      break
+    }
+    case 'time-lapse': {
+      const cx = w - inset - m * 0.06
+      const cy = inset + m * 0.06
+      const r = m * 0.05
+      p.ellipse(cx, cy, r, r, { color: RED, w: 2.6, passes: 1 })
+      p.line(cx, cy, cx, cy - r * 0.65, { color: RED, w: 2.4, passes: 1 })
+      p.line(cx, cy, cx + r * 0.5, cy, { color: RED, w: 2.4, passes: 1 })
+      const arc: Pt[] = []
+      for (let i = 0; i <= 10; i++) {
+        const t = Math.PI * (0.9 + (i / 10) * 0.9)
+        arc.push([cx + Math.cos(t) * r * 1.8, cy + Math.sin(t) * r * 1.8 + r * 0.4])
+      }
+      arrow(p, arc)
+      break
+    }
+    case 'handheld': {
+      const pts: Pt[] = []
+      for (let i = 0; i <= 8; i++) pts.push([w * (0.3 + i * 0.05), h * 0.08 + (i % 2 ? -1 : 1) * m * 0.015])
+      arrow(p, pts)
+      break
+    }
+  }
+}
+
+function composeStoryboard(ctx: Ctx, spec: StoryboardSpec, w: number, h: number) {
+  const p = new Pen(ctx, spec.seed, Math.min(w, h) / 540)
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.fillStyle = PAPER
+  ctx.fillRect(0, 0, w, h)
+  const objects = (spec.subjects ?? []).filter(isObject)
+  const night = spec.time === 'night'
+  const framing = FRAMING[spec.shot] ?? (objects.length ? 'tight' : 'mid')
+  if (framing === 'tight') composeTight(p, spec, w, h, objects, night)
+  else if (framing === 'mid') composeMid(p, spec, w, h, objects, night)
+  else if (framing === 'wide') composeWide(p, spec, w, h, objects, night)
+  else if (!composeFlat(p, w, h, objects)) composeTight(p, spec, w, h, objects, night)
+  if (night) {
+    ctx.fillStyle = 'rgba(22,26,40,0.06)'
+    ctx.fillRect(0, 0, w, h)
+  }
+  drawCameraMove(p, spec.movement, w, h)
+  ctx.restore()
+}
+
 // ---------------------------------------------------------------- export helpers
 
-/** Render a spec to a JPEG blob. Optionally a low-resolution preview. */
-export async function sketchToBlob(spec: SketchSpec, preview = false): Promise<{ blob: Blob; width: number; height: number }> {
+/** Render a spec to a JPEG blob, sized for its format. Optionally a low-resolution preview. */
+export async function sketchToBlob(spec: StoryboardSpec, preview = false): Promise<{ blob: Blob; width: number; height: number }> {
+  const { width, height } = sketchSize(spec.aspect)
   const canvas = document.createElement('canvas')
-  canvas.width = SKETCH_W
-  canvas.height = SKETCH_H
+  canvas.width = width
+  canvas.height = height
   const ctx = canvas.getContext('2d')!
-  renderSketch(ctx, spec)
+  renderSketch(ctx, spec, width, height)
   if (preview) {
     const small = document.createElement('canvas')
-    small.width = SKETCH_W / 4
-    small.height = SKETCH_H / 4
+    small.width = width / 4
+    small.height = height / 4
     small.getContext('2d')!.drawImage(canvas, 0, 0, small.width, small.height)
     const blob = await toBlob(small, 0.6)
     return { blob, width: small.width, height: small.height }
   }
   const blob = await toBlob(canvas, 0.9)
-  return { blob, width: SKETCH_W, height: SKETCH_H }
+  return { blob, width, height }
 }
 
 export function toBlob(canvas: HTMLCanvasElement, quality = 0.9): Promise<Blob> {

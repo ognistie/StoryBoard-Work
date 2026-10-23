@@ -54,10 +54,11 @@ export type TimeOfDay = 'day' | 'night' | 'sunset' | 'unknown'
 
 export type FrameStatus = 'draft' | 'review' | 'changes' | 'approved'
 
-export const SHOT_TYPES = ['geral', 'aberto', 'medio', 'americano', 'close', 'extreme-close', 'detalhe', 'pov', 'ots'] as const
+export const SHOT_TYPES = ['geral', 'conjunto', 'aberto', 'medio', 'americano', 'close', 'extreme-close', 'detalhe', 'pov', 'ots', 'motion'] as const
 export type ShotType = (typeof SHOT_TYPES)[number]
 
-export const CAMERA_MOVES = ['estatico', 'pan', 'tilt', 'dolly', 'tracking', 'truck', 'zoom', 'handheld', 'crane'] as const
+// 'tracking' is the travelling shot; the pills read it as TRAVELLING.
+export const CAMERA_MOVES = ['estatico', 'pan', 'tilt', 'dolly', 'push-in', 'tracking', 'truck', 'zoom', 'zoom-out', 'handheld', 'crane', 'time-lapse'] as const
 export type CameraMove = (typeof CAMERA_MOVES)[number]
 
 export interface Annotation {

@@ -12,9 +12,9 @@ export function ProjectCard({ summary }: { summary: ProjectSummary }) {
   return (
     <a
       href={`#/p/${project.id}`}
-      className="group flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_4px_16px_rgb(0_0_0/0.04)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgb(0_0_0/0.05),0_12px_28px_rgb(0_0_0/0.08)]"
+      className="group flex w-[300px] min-w-0 shrink-0 snap-start flex-col overflow-hidden md:w-auto rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_4px_16px_rgb(0_0_0/0.04)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgb(0_0_0/0.05),0_12px_28px_rgb(0_0_0/0.08)]"
     >
-      <div className="flex h-[150px] shrink-0 gap-0.5 border-b border-line bg-line">
+      <div className="flex h-[186px] shrink-0 gap-0.5 border-b border-line bg-line md:h-[150px]">
         <Tile imageId={imageIds[0]} className="min-w-0 flex-[2]" />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <Tile imageId={imageIds[1]} className="flex-1" />

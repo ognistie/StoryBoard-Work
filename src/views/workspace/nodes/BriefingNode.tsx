@@ -1,4 +1,4 @@
-import type { Node, NodeProps } from '@xyflow/react'
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { useState } from 'react'
 import { cx, Spinner, toast, toastError } from '../../../components/ui'
 import { applyBriefingChange } from '../../../lib/scenes'
@@ -99,11 +99,14 @@ export function BriefingNode({ data }: NodeProps<BriefingNodeType>) {
         </div>
       </div>
 
-      {/* Port and the dashed link down to the row of scenes. */}
-      <div className="absolute -bottom-[5px] left-[105px] size-2.5 rounded-[5px] border-[1.5px] border-[#D4D4D8] bg-white" />
-      <svg width="2" height="22" aria-hidden className="absolute top-full left-[109px] mt-[5px] overflow-visible">
-        <path d="M1 0 L1 18" fill="none" stroke="#D4D4D8" strokeWidth="1.5" strokeLinecap="round" strokeDasharray="3 4" />
-      </svg>
+      {/* The dashed link to the first scene is an edge, so it follows the briefing when it moves. */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={false}
+        className="!size-2.5 !min-h-0 !min-w-0 !rounded-[5px] !border-[1.5px] !border-[#D4D4D8] !bg-white"
+        style={{ left: 110 }}
+      />
     </div>
   )
 }

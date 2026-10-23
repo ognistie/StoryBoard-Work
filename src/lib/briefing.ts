@@ -75,7 +75,7 @@ export async function createProjectFromBriefing(input: { briefing: string; forma
 
   const sceneId = await createScene(projectId, input.userId, { heading: 'ROTEIRO', sequence: 'Sequência 1', summary: briefing.slice(0, 280) })
   // Drawn locally and committed with the first version, so no candidate waits for approval.
-  const drawings = await Promise.all(plan.scenes.map(drawScene))
+  const drawings = await Promise.all(plan.scenes.map((scene) => drawScene(scene, input.format)))
   for (const [i, scene] of plan.scenes.entries()) {
     await createFrame(projectId, sceneId, input.userId, { ...scene, ...drawings[i] }, {
       message: 'Cena proposta pelo briefing',

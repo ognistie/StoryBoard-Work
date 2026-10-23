@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../lib/db'
 import { createFrame, createProject, createScene, putImage, saveDoc } from '../lib/repo'
-import { applyBriefingChange, applyFocus, changedSceneFields, changesDrawing, reviseScene, sceneFieldsOf, type SceneFields } from '../lib/scenes'
+import { applyBriefingChange, applyFocus, canRedraw, changedSceneFields, changesDrawing, KEPT_IMAGE_NOTE, reviseScene, sceneFieldsOf, type SceneFields } from '../lib/scenes'
 import { PermissionError } from '../lib/session'
+import type { SketchSpec } from '../lib/types'
+
+// The sketch renderer needs a real canvas; here it only has to hand back an image.
+vi.mock('../lib/sketch', () => ({ sketchToBlob: async () => ({ blob: new Blob(['sketch']), width: 10, height: 10 }) }))
+
+const SKETCH: SketchSpec = { setting: 'empty', time: 'day', shot: 'detalhe', people: [], props: [], seed: 1 }
 
 const scene: SceneFields = {
   title: 'Encaixe',
@@ -53,6 +59,14 @@ describe('changedSceneFields', () => {
   })
 })
 
+describe('canRedraw', () => {
+  it('allows replacing a local sketch or an empty frame, never a real image', () => {
+    expect(canRedraw({ sketch: SKETCH, imageId: 'img_1' })).toBe(true)
+    expect(canRedraw({})).toBe(true)
+    expect(canRedraw({ imageId: 'img_1' })).toBe(false)
+  })
+})
+
 describe('changesDrawing', () => {
   it('is true only when the description, shot or movement changed', () => {
     expect(changesDrawing(scene, { ...scene, dialogue: 'x', duration: 3, title: 'y' })).toBe(false)
@@ -70,7 +84,7 @@ describe('saving AI changes', () => {
     const sceneId = await createScene(projectId, PRODUCER, { heading: 'ROTEIRO' })
     const imageId = await putImage(new Blob(['real']), 10, 10)
     const frameId = await createFrame(projectId, sceneId, PRODUCER, { ...scene, imageId })
-    const otherId = await createFrame(projectId, sceneId, PRODUCER, { ...scene, title: 'Assinatura' })
+    const otherId = await createFrame(projectId, sceneId, PRODUCER, { ...scene, title: 'Assinatura', sketch: SKETCH, imageId: await putImage(new Blob(['old sketch']), 10, 10) })
     await saveDoc(projectId, PRODUCER, { title: 'Briefing', kind: 'brief', text: 'Briefing antigo', confidential: false })
     return { projectId, frameId, otherId, imageId }
   }
@@ -100,6 +114,30 @@ describe('saving AI changes', () => {
     expect(changedSceneFields(sceneFieldsOf(parent.snapshot), sceneFieldsOf(head.snapshot)).map((c) => c.field)).toEqual(['dialogue'])
   })
 
+  it('reviseScene "drawing" on a real image keeps the image and says so', async () => {
+    const { frameId, imageId } = await project()
+    answer({ scene: proposed, summary: 'Close na mão.' })
+    await reviseScene({ frameId, instruction: 'Close na mão.', focus: 'drawing', userId: PRODUCER })
+
+    const frame = (await db.frames.get(frameId))!
+    expect(frame.shot).toBe(proposed.shot)
+    expect(frame.imageId).toBe(imageId)
+    expect(frame.sketch).toBeUndefined()
+    expect((await db.revisions.get(frame.headRevisionId!))!.ai?.summary).toBe(`Close na mão. ${KEPT_IMAGE_NOTE}`)
+  })
+
+  it('reviseScene "drawing" on a local sketch redraws it', async () => {
+    const { otherId } = await project()
+    const before = (await db.frames.get(otherId))!
+    answer({ scene: proposed, summary: 'Close na mão.' })
+    await reviseScene({ frameId: otherId, instruction: 'Close na mão.', focus: 'drawing', userId: PRODUCER })
+
+    const frame = (await db.frames.get(otherId))!
+    expect(frame.imageId).not.toBe(before.imageId)
+    expect(frame.sketch?.shot).toBe('close')
+    expect((await db.revisions.get(frame.headRevisionId!))!.ai?.summary).toBe('Close na mão.')
+  })
+
   it('reviseScene refuses a member who cannot edit, before calling the model', async () => {
     const { frameId } = await project()
     const fetch = vi.fn()
@@ -120,6 +158,19 @@ describe('saving AI changes', () => {
     expect(await db.revisions.where('frameId').equals(otherId).count()).toBe(1)
     const doc = (await db.docs.where('projectId').equals(projectId).first())!
     expect(doc).toMatchObject({ text: 'Briefing novo', version: 2 })
+  })
+
+  it('applyBriefingChange keeps real images and redraws only local sketches when the visuals change', async () => {
+    const { projectId, frameId, otherId, imageId } = await project()
+    const sketchBefore = (await db.frames.get(otherId))!.imageId
+    const visual = { ...scene, description: 'Blocos formam o símbolo.', shot: 'motion' as const }
+    answer({ changes: [{ id: frameId, scene: visual, reason: 'Mais gráfico.' }, { id: otherId, scene: { ...visual, title: 'Assinatura' }, reason: 'Mais gráfico.' }] })
+    await applyBriefingChange({ projectId, briefing: 'Briefing novo', userId: PRODUCER })
+
+    const real = (await db.frames.get(frameId))!
+    expect(real.imageId).toBe(imageId)
+    expect((await db.revisions.get(real.headRevisionId!))!.ai?.summary).toBe(`Mais gráfico. ${KEPT_IMAGE_NOTE}`)
+    expect((await db.frames.get(otherId))!.imageId).not.toBe(sketchBefore)
   })
 
   it('applyBriefingChange rejects scene ids that are not in the project and leaves the briefing untouched', async () => {

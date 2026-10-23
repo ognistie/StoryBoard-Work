@@ -1,4 +1,4 @@
-import type { ArtStyle, Asset, ContextDoc, ContextRef, DocChunk, DocKind, Frame, Project, Region, Scene, TimeOfDay } from './types'
+import type { ArtStyle, Asset, CameraMove, ContextDoc, ContextRef, DocChunk, DocKind, Frame, Project, Region, Scene, ShotType, TimeOfDay } from './types'
 
 /**
  * Context engine: script parsing, chunking, lexical retrieval (BM25), conflict
@@ -320,8 +320,9 @@ export const STYLE_PROMPT: Record<ArtStyle, string> = {
   custom: 'estilo customizado do projeto (ver notas de direção de arte)',
 }
 
-export const SHOT_LABEL: Record<string, string> = {
+export const SHOT_LABEL: Record<ShotType, string> = {
   geral: 'Plano geral',
+  conjunto: 'Plano de conjunto',
   aberto: 'Plano aberto',
   medio: 'Plano médio',
   americano: 'Plano americano',
@@ -330,18 +331,22 @@ export const SHOT_LABEL: Record<string, string> = {
   detalhe: 'Plano detalhe',
   pov: 'POV',
   ots: 'Over-the-shoulder',
+  motion: 'Motion graphics',
 }
 
-export const MOVE_LABEL: Record<string, string> = {
+export const MOVE_LABEL: Record<CameraMove, string> = {
   estatico: 'Estático',
   pan: 'Pan',
   tilt: 'Tilt',
   dolly: 'Dolly',
-  tracking: 'Tracking',
+  'push-in': 'Push-in',
+  tracking: 'Travelling',
   truck: 'Truck',
   zoom: 'Zoom',
+  'zoom-out': 'Zoom out',
   handheld: 'Câmera na mão',
   crane: 'Grua',
+  'time-lapse': 'Time-lapse',
 }
 
 function regionText(r: Region) {

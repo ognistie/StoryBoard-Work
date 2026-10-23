@@ -8,7 +8,7 @@ import type { AIRecord, Frame, FrameContent, Project, Revision, RevisionKind, Sk
 /** Demo workspace so the product can be explored immediately. */
 
 // Bumping this key wipes the browser's data once and reseeds it.
-const SEED_FLAG = 'decupa.seeded.v3'
+const SEED_FLAG = 'decupa.seeded.v4'
 
 const OWNER = 'u_marina'
 const MIN = 60_000
@@ -69,7 +69,7 @@ const PROJECTS: SeedProject[] = [
           action: 'Mão escreve a fórmula de potência em papel branco. O traço vira uma pílula azul. Logo preto pequeno no canto desde o primeiro quadro.',
           dialogue: 'LOCUÇÃO: Potência é energia a cada unidade de tempo.',
           shot: 'detalhe',
-          movement: 'dolly',
+          movement: 'push-in',
           duration: 4,
           notes: 'Push-in lento. Texto na tela: “potência = energia ÷ tempo”.',
         },
@@ -82,7 +82,7 @@ const PROJECTS: SeedProject[] = [
           action: 'Gestora financeira à mesa, entre planilhas; a luz da janela passa de dia para noite. Três pílulas surgem em volta dela.',
           dialogue: 'LOCUÇÃO: Processos repetitivos consomem sua energia devagar.',
           shot: 'medio',
-          movement: 'estatico',
+          movement: 'time-lapse',
           duration: 7,
           characters: ['Gestora'],
           notes: 'Time-lapse. Pílulas: “CONCILIAÇÃO que consome tempo”, “COBRANÇA que escapa”, “FLUXO que perde previsibilidade”.',
@@ -105,8 +105,8 @@ const PROJECTS: SeedProject[] = [
           description: 'Pílulas viram blocos azuis e se encaixam.',
           action: 'As três pílulas se soltam e viram blocos arredondados. Com um quarto bloco, formam um mosaico azul: Cobrança, Recorrência, Split, BaaS.',
           dialogue: 'LOCUÇÃO: Conciliação e cobrança no automático.',
-          shot: 'geral',
-          movement: 'zoom',
+          shot: 'motion',
+          movement: 'zoom-out',
           duration: 6,
           notes: 'Motion graphics. Texto na tela: “Quatro produtos. Um ecossistema.” Som de clique seco em cada encaixe.',
         },
@@ -134,7 +134,7 @@ const PROJECTS: SeedProject[] = [
           description: 'De manhã, ela leva o time para a estratégia.',
           action: 'A mesma gestora, de manhã e com luz natural, entra numa sala clara e conduz o time diante de um quadro de planejamento.',
           dialogue: 'LOCUÇÃO: Isso é transformar energia em potência.',
-          shot: 'aberto',
+          shot: 'conjunto',
           movement: 'tracking',
           duration: 7,
           characters: ['Gestora'],

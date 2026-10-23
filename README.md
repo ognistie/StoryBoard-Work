@@ -1,8 +1,8 @@
-# Frameline — Storyboard colaborativo com IA
+# Decupa — do briefing ao storyboard
 
-Workspace de pré-produção audiovisual onde produtora e cliente planejam, editam com IA, comparam, aprovam e versionam quadros de storyboard.
+Planejador de cenas para criadores. O briefing vira até 6 cenas, cada uma com descrição, fala, duração, plano e movimento de câmera, num canvas onde dá para editar, reordenar e exportar.
 
-O diferencial é a **edição conversacional e incremental**: o usuário seleciona um ou vários quadros, escreve só o que quer mudar (“Adicionar mais uma pessoa à direita, mantendo o restante”) e recebe uma prévia por quadro. A prévia vem com Antes/Depois, aceite individual e registro no histórico de versões, no estilo dos commits do GitHub.
+O diferencial é a **edição conversacional e incremental**: escreva só o que quer mudar numa cena, ou edite o briefing, e a IA refaz apenas o que foi afetado. Cada mudança vira uma versão, com antes e depois, no estilo dos commits do GitHub.
 
 ## Rodando
 
@@ -25,16 +25,11 @@ O app abre com três projetos de demonstração: **iugu · Energia que vira pot�
 3. **Prompt por cena**: selecione uma cena e peça uma mudança na caixa de baixo, ou use os atalhos “Só o desenho”, “Só o diálogo” e “Mais curta”. Arraste uma cena para reordenar, puxe o arco do canto para redimensionar e use **Nota** para colar um lembrete no canvas.
 4. **Exportar**: PDF, roteiro em Markdown, shot list em CSV e pacote JSON.
 
-## IA: provedores
+## IA
 
-| Provedor | O que faz | Como ativar |
-|---|---|---|
-| **Demonstração local** | **Não é IA.** Desenha quadros no estilo de storyboard (tinta e lápis) e entende pedidos simples: adicionar ou remover pessoa ou personagem, expressão (sorrindo, surpreso…), noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
-| **OpenAI** (padrão) | Transforma o briefing em até 6 cenas, faz a decupagem do roteiro em quadros, reescreve descrições e descreve imagens importadas, sempre com saída estruturada (Zod). O app não gera imagens: o desenho do quadro sai do mesmo renderizador local do modo demonstração. | Definir `OPENAI_API_KEY` no ambiente da Vercel. Localmente, rodar com `vercel dev`, que serve o `api/` junto com o Vite. |
+A OpenAI transforma o briefing em até 6 cenas, refaz uma cena a partir de um pedido curto e reescreve só as cenas afetadas quando o briefing muda, sempre com saída estruturada (Zod). O app não gera imagens: o desenho de cada cena sai do renderizador local (`src/lib/sketch.ts`). Para rodar a IA localmente, defina `OPENAI_API_KEY` e use `vercel dev`, que serve o `api/` junto com o Vite.
 
 Modelo: `gpt-6.1-sol`, definido em `src/lib/ai/server.ts`. As chamadas passam pelas funções em `api/`, então a chave nunca chega ao navegador. O formato de cada pedido e resposta fica em `src/lib/ai/contract.ts`, usado pelos dois lados.
-
-A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada provedor (`editImage`, `generateImage`, `maskedRegion: native | guided | none`, `progressivePreview`).
 
 ## Linguagem visual dos quadros
 
@@ -52,9 +47,7 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 - **Camada de domínio única** (`src/lib/repo.ts`): toda mutação autoriza o ator pelo papel no projeto, grava um evento de auditoria e trata revisões e imagens como *append-only*.
 - **Versionamento** (`Revision`): hash curto, autor, mensagem, snapshot imutável do quadro, registro de IA (instrução, prompt-base, prompt estruturado, provedor, latência, trechos de contexto e exceção autorizada). Restaurar cria uma nova revisão.
 - **Cópia de trabalho × versão**: editar metadados deixa o quadro “não versionado” até alguém registrar a versão. A aprovação sempre aponta para uma revisão exata e registra antes as alterações pendentes.
-- **Candidatos × versões**: o resultado da IA é um `GenerationJob` com imagem candidata e nunca substitui a imagem atual sozinho. Editor ou produtor aceita e vira revisão. Quando o cliente aceita, vira `Proposal`, e a produtora decide.
 - **Concorrência**: o aceite faz *compare-and-set* com a revisão-base do job. Se o quadro mudou durante a geração, o app avisa e só aplica com confirmação explícita, sem sobrescrever nada em silêncio.
-- **Fila de jobs** (`src/lib/jobs.ts`): assíncrona, 2 jobs em paralelo, status persistido (preparando → gerando prévia → refinando → pronto/erro), cancelamento, refazer e limite de gerações. A latência é medida da solicitação até a prévia e até o resultado final. Jobs abandonados por uma aba fechada são marcados como interrompidos.
 - **Motor de contexto** (`src/lib/context.ts`):
   - parser de roteiro (INT./EXT., personagens, falas e período do dia);
   - divisão do roteiro por cena e dos demais documentos por seção, sempre com origem rastreável;
@@ -70,9 +63,9 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 
 ```
 src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
-                 jobs (fila IA), ai/ (openai, demo, contract, server), sketch* (renderizador local), session, seed
+                 briefing e scenes (IA), ai/ (openai, contract, server), sketch* (renderizador local), session, seed
 api/             funções da Vercel que chamam a OpenAI (plan-briefing, revise-scene, apply-briefing, plan-shots, rewrite-description, describe-image)
-src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), JoinView, Workspace
+src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), Workspace
 src/views/workspace/  SceneCanvas (React Flow: briefing, cenas, notas, zoom), nodes/ (BriefingNode, SceneNode, NoteNode),
                  Inspector (Versões e Ficha), PromptBox, ExportMenu, scene (rótulos e formatos)
 src/test/        testes de contexto/regras/edição demo e de repo (revisões, aprovação, propostas, concorrência, permissões)
@@ -80,7 +73,6 @@ src/test/        testes de contexto/regras/edição demo e de repo (revisões, a
 
 ## Limitações conhecidas
 
-- **Sem banco no servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. Links de convite só funcionam nesse mesmo navegador. As identidades são de demonstração e escolhidas no avatar. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
-- **Modo demo**: entende um vocabulário limitado e avisa quando não entende o pedido. Não imita uma IA real.
+- **Sem banco no servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. As identidades são de demonstração. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
 - **Busca de contexto** é lexical (BM25), sem embeddings.
 - **Fora do escopo do MVP**: menções com notificação por e-mail, comentários em regiões retangulares (hoje são pontos) e desfazer/refazer granular para metadados (a restauração formal já existe).
