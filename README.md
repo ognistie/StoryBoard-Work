@@ -4,12 +4,14 @@ Planejador de cenas para criadores. O briefing vira até 6 cenas, cada uma com d
 
 O diferencial é a **edição conversacional e incremental**: escreva só o que quer mudar numa cena, ou edite o briefing, e a IA refaz apenas o que foi afetado. Cada mudança vira uma versão, com antes e depois, no estilo dos commits do GitHub.
 
-<p>
+<p align="center">
   <a href="docs/media/demo.mp4"><img src="docs/media/demo.gif" alt="Vídeo: o Decupa funcionando" width="49%"></a>
   <a href="docs/media/paper.mp4"><img src="docs/media/paper.gif" alt="Vídeo: o design do Decupa no Paper" width="49%"></a>
 </p>
 
 À esquerda, o app funcionando. À direita, o design no Paper. Clique num vídeo para abrir o original em alta qualidade.
+
+Se a prévia demorar a carregar, os vídeos também estão no CleanShot: [app funcionando](https://cleanshot.com/share/x0frYWc0) e [design no Paper](https://cleanshot.com/share/SXlsQ7YG).
 
 ## Rodando
 
