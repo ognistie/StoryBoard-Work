@@ -17,7 +17,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toastError } from '../../components/ui'
 import { reorderFrames, updateNote } from '../../lib/repo'
 import { useWD } from './context'
-import { useAddNote } from './useAddNote'
 import { BriefingNode, type BriefingNodeType } from './nodes/BriefingNode'
 import { NoteNode, type NoteNodeType } from './nodes/NoteNode'
 import { SceneNode, type SceneNodeType } from './nodes/SceneNode'
@@ -136,21 +135,18 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
       if (from >= 0) row.splice(drag.slot, 0, ...row.splice(from, 1))
     }
 
-    const selectedIndex = ordered.findIndex((f) => f.id === selectedId)
+    // Numbers, ports and links follow the row, so a drag previews the order it would save.
+    const selectedIndex = row.findIndex((f) => f.id === selectedId)
     let x = ROW_X
-    const slotX = new Map<string, number>()
-    for (const frame of row) {
-      slotX.set(frame.id, x)
-      x += (widths[frame.id] ?? DEFAULT_CARD_WIDTH[frame.aspect ?? project.aspect]) + ROW_GAP
-    }
-
-    const scenes: SceneNodeType[] = ordered.map((frame, i) => {
+    const scenes: SceneNodeType[] = row.map((frame, i) => {
       const width = widths[frame.id] ?? DEFAULT_CARD_WIDTH[frame.aspect ?? project.aspect]
-      return {
+      const node: SceneNodeType = {
         id: frame.id,
         type: 'scene',
-        position: { x: slotX.get(frame.id) ?? ROW_X, y: ROW_Y },
+        position: { x, y: ROW_Y },
         width,
+        // React Flow lifts the selected node by 1000; the dragged scene goes above it and the notes.
+        zIndex: frame.id === drag?.id ? 2000 : undefined,
         selected: frame.id === selectedId,
         data: {
           frame,
@@ -162,10 +158,12 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
           activeIn: selectedIndex >= 0 && (i === selectedIndex || i === selectedIndex + 1),
           activeOut: selectedIndex >= 0 && (i === selectedIndex || i === selectedIndex - 1),
           hasIn: true,
-          hasOut: i < ordered.length - 1,
+          hasOut: i < row.length - 1,
           userId,
         },
       }
+      x += width + ROW_GAP
+      return node
     })
 
     // The badge counts the scenes rewritten since the briefing's latest version was saved.
@@ -188,13 +186,13 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
     const noteNodes: NoteNodeType[] = notes.map((note) => ({ id: NOTE_ID + note.id, type: 'note', position: { x: note.x, y: note.y }, selectable: false, data: { note, userId } }))
 
     const link = { stroke: '#D4D4D8', strokeWidth: 1.5 }
-    const edges: Edge[] = ordered.slice(1).map((frame, i) => {
-      const source = ordered[i].id
+    const edges: Edge[] = row.slice(1).map((frame, i) => {
+      const source = row[i].id
       const active = source === selectedId || frame.id === selectedId
       return { id: `${source}->${frame.id}`, source, target: frame.id, sourceHandle: 'out', targetHandle: 'in', type: 'straight', focusable: false, style: { ...link, stroke: active ? '#0071E3' : link.stroke } }
     })
-    if (ordered[0])
-      edges.unshift({ id: 'briefing->row', source: BRIEFING_ID, target: ordered[0].id, targetHandle: 'brief', type: 'straight', focusable: false, style: { ...link, strokeDasharray: '3 4', strokeLinecap: 'round' } })
+    if (row[0])
+      edges.unshift({ id: 'briefing->row', source: BRIEFING_ID, target: row[0].id, targetHandle: 'brief', type: 'straight', focusable: false, style: { ...link, strokeDasharray: '3 4', strokeLinecap: 'round' } })
 
     return { nodes: [brief, ...scenes, ...noteNodes] as CanvasNode[], edges }
   }, [project, ordered, revisions, briefing, notes, userId, selectedId, widths, briefingAt, drag])
@@ -220,7 +218,9 @@ export function SceneCanvas() {
   useEffect(() => {
     const clear = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))
-      if (e.key === 'Escape' && !typing) useWS.getState().set({ selectedId: undefined })
+      // An open menu, modal or sheet takes Esc for itself.
+      const overlay = document.querySelector('[role="menu"], [role="dialog"]')
+      if (e.key === 'Escape' && !typing && !overlay) useWS.getState().set({ selectedId: undefined })
     }
     document.addEventListener('keydown', clear)
     return () => document.removeEventListener('keydown', clear)
@@ -260,7 +260,7 @@ export function SceneCanvas() {
         const live = new Map(prev.map((n) => [n.id, n]))
         return next.map((n) => {
           const now = live.get(n.id)
-          if (n.id === held.current && now) return { ...n, position: now.position, dragging: now.dragging }
+          if (n.id === held.current && now) return { ...n, position: now.position, width: now.width, dragging: now.dragging }
           const start = from.get(n.id)?.position
           if (k >= 1 || !start) return n
           return { ...n, position: { x: start.x + (n.position.x - start.x) * k, y: start.y + (n.position.y - start.y) * k } }
@@ -281,12 +281,16 @@ export function SceneCanvas() {
 
   useEffect(() => () => cancelAnimationFrame(frame.current), [])
 
+  // A resize is React Flow's until the pointer lets go; then the width joins the layout and the row glides to make room.
   const onNodesChange = useCallback((changes: NodeChange<CanvasNode>[]) => {
-    for (const c of changes)
-      if (c.type === 'dimensions' && c.dimensions) {
-        held.current = c.resizing ? c.id : held.current === c.id ? undefined : held.current
-        if (c.resizing) useWS.getState().set({ widths: { ...useWS.getState().widths, [c.id]: Math.round(c.dimensions.width) } })
+    for (const c of changes) {
+      if (c.type !== 'dimensions' || !c.dimensions) continue
+      if (c.resizing) held.current = c.id
+      else if (c.resizing === false && held.current === c.id) {
+        held.current = undefined
+        useWS.getState().set({ widths: { ...useWS.getState().widths, [c.id]: Math.round(c.dimensions.width) } })
       }
+    }
     setNodes((prev) => applyNodeChanges(changes, prev))
   }, [])
 
@@ -372,7 +376,7 @@ export function SceneCanvas() {
   )
 }
 
-const FLOATING = 'flex h-11 items-center rounded-[22px] border border-[#E4E4E7] bg-white/92 shadow-[0_1px_2px_#0000000A,0_8px_24px_#0000000F] backdrop-blur-xl backdrop-saturate-[1.8]'
+const FLOATING = 'flex h-11 items-center rounded-[22px] border border-[#E4E4E7] bg-white/92 shadow-[0_1px_2px_#0000000A,0_8px_24px_#0000000F] backdrop-blur-[20px] backdrop-saturate-[1.8]'
 
 /** Zoom out, level, zoom in. Clicking the level returns to the default for this screen size. */
 export function ZoomControl() {
@@ -395,19 +399,5 @@ export function ZoomControl() {
         </svg>
       </button>
     </div>
-  )
-}
-
-/** Drops a new sticky note in the middle of what is on screen. */
-export function AddNoteButton() {
-  const add = useAddNote()
-  return (
-    <button onClick={() => void add()} className={`${FLOATING} gap-2 pr-4 pl-3 hover:bg-white`}>
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-        <path d="M3 4.5C3 3.67 3.67 3 4.5 3h9c.83 0 1.5.67 1.5 1.5V11l-4 4H4.5C3.67 15 3 14.33 3 13.5v-9z" fill="#FBE98C" stroke="#B45309" strokeWidth="1.2" strokeLinejoin="round" />
-        <path d="M15 11h-2.5c-.83 0-1.5.67-1.5 1.5V15" fill="none" stroke="#B45309" strokeWidth="1.2" strokeLinejoin="round" />
-      </svg>
-      <span className="text-[14px] leading-[18px] font-medium text-[#18181B]">Nota</span>
-    </button>
   )
 }

@@ -23,14 +23,16 @@ export function NoteNode({ data }: NodeProps<NoteNodeType>) {
   const editing = draft !== undefined
 
   // React Flow keeps a new node hidden until it has measured it, and a hidden field cannot take focus.
-  // So focus is retried for a few frames instead of relying on autoFocus.
+  // So focus is retried for a few frames instead of relying on autoFocus. The caret goes to the end, to keep writing.
   useEffect(() => {
     if (!editing) return
     let frame = 0
     let tries = 0
     const tryFocus = () => {
-      field.current?.focus()
-      if (document.activeElement !== field.current && ++tries < 20) frame = requestAnimationFrame(tryFocus)
+      const el = field.current
+      el?.focus()
+      if (el && document.activeElement === el) el.setSelectionRange(el.value.length, el.value.length)
+      else if (++tries < 20) frame = requestAnimationFrame(tryFocus)
     }
     frame = requestAnimationFrame(tryFocus)
     return () => cancelAnimationFrame(frame)

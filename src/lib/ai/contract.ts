@@ -4,7 +4,7 @@ import { CAMERA_MOVES, SHOT_TYPES } from '../types.js'
 // Wire contract between the browser and the functions in api/.
 // Both sides parse with these schemas, so a change here reaches both.
 
-export const plannedFrameSchema = z.object({
+const plannedFrameSchema = z.object({
   title: z.string(),
   description: z.string().describe('Descrição visual objetiva do quadro, 1 a 2 frases.'),
   action: z.string(),
@@ -14,20 +14,6 @@ export const plannedFrameSchema = z.object({
   characters: z.array(z.string()),
   duration: z.int().describe('Duração em segundos.'),
 })
-export type PlannedFrame = z.infer<typeof plannedFrameSchema>
-
-export const planShotsRequest = z.object({
-  styleHint: z.string(),
-  scenes: z.array(z.object({ sceneNumber: z.int(), heading: z.string(), characters: z.array(z.string()), text: z.string() })),
-})
-export const planShotsResponse = z.object({
-  scenes: z.array(z.object({ sceneNumber: z.int(), frames: z.array(plannedFrameSchema) })),
-})
-
-export const rewriteDescriptionRequest = z.object({ base: z.string(), instruction: z.string() })
-export const describeImageRequest = z.object({ image: z.string().describe('Data URL da imagem.') })
-export const descriptionResponse = z.object({ description: z.string() })
-
 export const FORMATS = ['9:16', '1:1', '16:9'] as const
 export const MAX_SCENES = 6
 /** Characters of an attached document sent to the model; the rest stays only in the project. */

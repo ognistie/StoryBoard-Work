@@ -50,8 +50,10 @@ function portClass(active: boolean) {
 }
 
 /** A scene on the canvas: the drawing fills the card, the text sits on a dark shade at the bottom. */
-export function SceneNode({ data }: NodeProps<SceneNodeType>) {
-  const { frame, number, revisions, projectAspect, width, selected, userId } = data
+export function SceneNode({ data, width: liveWidth }: NodeProps<SceneNodeType>) {
+  const { frame, number, revisions, projectAspect, selected, userId } = data
+  // React Flow's width follows the pointer during a resize; the layout's width is the one at rest.
+  const width = liveWidth ?? data.width
   const browsingId = useWS((s) => s.browsing[frame.id])
   const browsed = revisions.find((r) => r.id === browsingId)
   const shown: FrameContent = browsed?.snapshot ?? frame
@@ -161,14 +163,16 @@ export function SceneNode({ data }: NodeProps<SceneNodeType>) {
 
       <Handle id="in" type="target" position={Position.Left} isConnectable={false} className={cx(portClass(data.activeIn), !data.hasIn && '!hidden')} style={{ top: PORT_TOP }} />
       <Handle id="out" type="source" position={Position.Right} isConnectable={false} className={cx(portClass(data.activeOut), !data.hasOut && '!hidden')} style={{ top: PORT_TOP }} />
-      {/* Where the briefing's dashed link lands on the first scene; under the briefing's own port when neither has moved. */}
-      <Handle id="brief" type="target" position={Position.Top} isConnectable={false} className="!size-px !min-h-0 !min-w-0 !border-0 !bg-transparent" style={{ left: 110, top: 5 }} />
+      {/* Where the briefing's dashed link ends: just above the first scene's label, under the briefing's port when neither has moved. */}
+      <Handle id="brief" type="target" position={Position.Top} isConnectable={false} className="!size-px !min-h-0 !min-w-0 !border-0 !bg-transparent" style={{ left: 110, top: -1.5 }} />
 
       <NodeResizeControl
         position="bottom-left"
         minWidth={140}
         maxWidth={520}
         resizeDirection="horizontal"
+        // The arc is part of the card and zooms with it, as in the design.
+        autoScale={false}
         className={cx('!size-7 !rounded-none !border-0 !bg-transparent transition-opacity', selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}
       >
         <svg width="36" height="40" viewBox="-12 -28 36 40" aria-hidden className="pointer-events-none absolute top-[-14px] left-[2px]">

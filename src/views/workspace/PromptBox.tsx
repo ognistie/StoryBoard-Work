@@ -49,7 +49,8 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
         compact ? 'gap-3 rounded-[24px] pt-3.5 pr-3 pb-3 pl-4' : 'gap-[18px] rounded-[26px] pt-5 pr-4 pb-4 pl-6',
       )}
     >
-      <div className="flex items-center gap-2">
+      {/* Fixed height, so the box keeps its size with or without the scene chip. */}
+      <div className="flex h-6 items-center gap-2">
         {frame && (
           <span className="flex h-6 shrink-0 items-center gap-1.5 rounded-[7px] bg-[#0071E31A] px-[9px]">
             <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden className="shrink-0">

@@ -68,9 +68,11 @@ body {
   }
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
 }
 
 button {

@@ -6,39 +6,30 @@ import type {
   ContextDoc,
   ContextDocVersion,
   Frame,
-  GenerationJob,
   Note,
   Project,
   ProjectEvent,
-  Proposal,
   Revision,
   Scene,
-  ShareLink,
-  Snapshot,
   StoredImage,
 } from './types'
 
 /**
  * Browser-local database. Dexie propagates mutations across tabs of the same
- * origin, so two windows (e.g. "Produtora" and "Cliente") see each other's
- * changes in real time without a server.
+ * origin, so open tabs see each other's changes without a server.
  */
-export class StoryboardDB extends Dexie {
+class StoryboardDB extends Dexie {
   projects!: EntityTable<Project, 'id'>
   scenes!: EntityTable<Scene, 'id'>
   frames!: EntityTable<Frame, 'id'>
   revisions!: EntityTable<Revision, 'id'>
   images!: EntityTable<StoredImage, 'id'>
-  jobs!: EntityTable<GenerationJob, 'id'>
-  proposals!: EntityTable<Proposal, 'id'>
   approvals!: EntityTable<Approval, 'id'>
   comments!: EntityTable<Comment, 'id'>
   docs!: EntityTable<ContextDoc, 'id'>
   docVersions!: EntityTable<ContextDocVersion, 'id'>
   assets!: EntityTable<Asset, 'id'>
   events!: EntityTable<ProjectEvent, 'id'>
-  shareLinks!: EntityTable<ShareLink, 'id'>
-  snapshots!: EntityTable<Snapshot, 'id'>
   notes!: EntityTable<Note, 'id'>
 
   constructor(name = 'frameline') {
@@ -61,6 +52,8 @@ export class StoryboardDB extends Dexie {
       snapshots: 'id, projectId',
     })
     this.version(2).stores({ notes: 'id, projectId' })
+    // Image-editing jobs, client proposals, share links and snapshots left the app.
+    this.version(3).stores({ jobs: null, proposals: null, shareLinks: null, snapshots: null })
   }
 }
 

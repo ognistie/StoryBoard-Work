@@ -5,17 +5,15 @@ export type Role = 'admin' | 'producer' | 'editor' | 'client' | 'viewer'
 export interface User {
   id: string
   name: string
-  title: string
   org: string
-  color: string
 }
 
-export interface ProjectMember {
+interface ProjectMember {
   userId: string
   role: Role
 }
 
-export type ProjectStatus = 'pre' | 'review' | 'approved' | 'archived'
+type ProjectStatus = 'pre' | 'review' | 'approved' | 'archived'
 
 export type ArtStyle = 'pencil' | 'sketch' | 'concept' | 'cinematic' | 'custom'
 
@@ -52,7 +50,7 @@ export interface Scene {
 
 export type TimeOfDay = 'day' | 'night' | 'sunset' | 'unknown'
 
-export type FrameStatus = 'draft' | 'review' | 'changes' | 'approved'
+type FrameStatus = 'draft' | 'review' | 'changes' | 'approved'
 
 export const SHOT_TYPES = ['geral', 'conjunto', 'aberto', 'medio', 'americano', 'close', 'extreme-close', 'detalhe', 'pov', 'ots', 'motion'] as const
 export type ShotType = (typeof SHOT_TYPES)[number]
@@ -61,7 +59,7 @@ export type ShotType = (typeof SHOT_TYPES)[number]
 export const CAMERA_MOVES = ['estatico', 'pan', 'tilt', 'dolly', 'push-in', 'tracking', 'truck', 'zoom', 'zoom-out', 'handheld', 'crane', 'time-lapse'] as const
 export type CameraMove = (typeof CAMERA_MOVES)[number]
 
-export interface Annotation {
+interface Annotation {
   id: string
   kind: 'arrow' | 'note'
   x1: number
@@ -127,34 +125,18 @@ export interface Frame extends FrameContent {
   order: number
   status: FrameStatus
   headRevisionId?: string
-  approvedRevisionId?: string
   dirty: boolean // working copy differs from head revision
-  contextOutdated?: boolean // script changed after this frame was versioned
   updatedAt: number
   updatedBy: string
 }
 
-export type RevisionKind = 'initial' | 'ai-edit' | 'ai-generate' | 'briefing' | 'manual' | 'restore' | 'upload' | 'proposal'
+export type RevisionKind = 'initial' | 'ai-edit' | 'briefing' | 'manual' | 'restore'
 
-export interface ContextRef {
-  docId: string
-  docTitle: string
-  docVersion: number
-  section: string
-  excerpt: string
-  score: number
-}
-
+/** Where an AI-made revision came from: the request and the model that answered it. */
 export interface AIRecord {
   instruction: string
-  basePrompt: string
-  structuredPrompt: string
   provider: string
   model: string
-  isDemo: boolean
-  contextRefs: ContextRef[]
-  region?: Region
-  exception?: string // justification when the user overrode a script conflict
   latencyMs?: number
   /** One line from the model saying what it changed. */
   summary?: string
@@ -174,7 +156,6 @@ export interface Revision {
   snapshot: FrameContent
   ai?: AIRecord
   restoredFrom?: string
-  proposalId?: string
 }
 
 export interface StoredImage {
@@ -182,61 +163,6 @@ export interface StoredImage {
   blob: Blob
   width: number
   height: number
-  createdAt: number
-}
-
-export interface Region {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-export type JobStatus = 'queued' | 'preparing' | 'generating' | 'refining' | 'ready' | 'error' | 'canceled'
-export type JobDecision = 'pending' | 'accepted' | 'proposed' | 'discarded'
-
-export interface GenerationJob {
-  id: string
-  projectId: string
-  frameId: string
-  batchId: string
-  kind: 'edit' | 'generate'
-  baseRevisionId?: string
-  instruction: string
-  region?: Region
-  keepConsistency: boolean
-  exception?: string
-  status: JobStatus
-  decision: JobDecision
-  previewImageId?: string
-  candidateImageId?: string
-  candidateSketch?: SketchSpec
-  newDescription?: string
-  ai?: AIRecord
-  error?: string
-  stale?: boolean
-  createdBy: string
-  createdAt: number
-  firstPreviewMs?: number
-  totalMs?: number
-}
-
-export interface Proposal {
-  id: string
-  projectId: string
-  frameId: string
-  jobId: string
-  baseRevisionId?: string
-  candidateImageId: string
-  candidateSketch?: SketchSpec
-  newDescription: string
-  instruction: string
-  ai?: AIRecord
-  authorId: string
-  status: 'open' | 'accepted' | 'rejected'
-  decidedBy?: string
-  decidedAt?: number
-  note?: string
   createdAt: number
 }
 
@@ -280,12 +206,6 @@ export interface Note {
 
 export type DocKind = 'script' | 'brief' | 'treatment' | 'bible' | 'art' | 'tech' | 'other'
 
-export interface DocChunk {
-  id: string
-  section: string
-  text: string
-}
-
 export interface ContextDoc {
   id: string
   projectId: string
@@ -294,7 +214,6 @@ export interface ContextDoc {
   fileName?: string
   version: number
   text: string
-  chunks: DocChunk[]
   confidential: boolean
   createdAt: number
   updatedAt: number
@@ -310,7 +229,7 @@ export interface ContextDocVersion {
   authorId: string
 }
 
-export type AssetType = 'character' | 'location' | 'wardrobe' | 'prop' | 'lighting' | 'palette' | 'reference'
+type AssetType = 'character' | 'location' | 'wardrobe' | 'prop' | 'lighting' | 'palette' | 'reference'
 
 export interface Asset {
   id: string
@@ -330,25 +249,4 @@ export interface ProjectEvent {
   type: string
   message: string
   createdAt: number
-}
-
-export interface ShareLink {
-  id: string
-  projectId: string
-  token: string
-  role: Role
-  label: string
-  expiresAt: number
-  revoked: boolean
-  createdAt: number
-  createdBy: string
-}
-
-export interface Snapshot {
-  id: string
-  projectId: string
-  name: string
-  authorId: string
-  createdAt: number
-  frames: { frameId: string; revisionId?: string; order: number }[]
 }

@@ -2,42 +2,27 @@ import { create } from 'zustand'
 import type { Project, Role, User } from './types'
 
 /**
- * Demo identities. There is no auth server: each browser tab picks who it is
- * acting as (stored in sessionStorage, so two tabs can be two different people).
+ * Demo identities. There is no auth server: the browser acts as the first user
+ * unless an earlier session stored another one.
  */
-export const USERS: User[] = [
-  { id: 'u_marina', name: 'Marina Costa', title: 'Diretora', org: 'Lumen Filmes', color: '#4b5cf0' },
-  { id: 'u_rafael', name: 'Rafael Lima', title: 'Artista de storyboard', org: 'Lumen Filmes', color: '#0f9d76' },
-  { id: 'u_julia', name: 'Júlia Andrade', title: 'Gerente de marca', org: 'Horizonte Imóveis', color: '#e0662f' },
-  { id: 'u_caio', name: 'Caio Mendes', title: 'Atendimento', org: 'Agência Norte', color: '#a64bd6' },
+const USERS: User[] = [
+  { id: 'u_marina', name: 'Marina Costa', org: 'Lumen Filmes' },
+  { id: 'u_rafael', name: 'Rafael Lima', org: 'Lumen Filmes' },
+  { id: 'u_julia', name: 'Júlia Andrade', org: 'Horizonte Imóveis' },
+  { id: 'u_caio', name: 'Caio Mendes', org: 'Agência Norte' },
 ]
 
-export const userById = (id?: string): User =>
-  USERS.find((u) => u.id === id) ?? { id: id ?? '?', name: 'Convidado', title: '', org: '', color: '#888' }
-
-export const ROLE_LABEL: Record<Role, string> = {
-  admin: 'Admin',
-  producer: 'Produtor/Diretor',
-  editor: 'Editor',
-  client: 'Cliente',
-  viewer: 'Visualizador',
-}
+export const userById = (id?: string): User => USERS.find((u) => u.id === id) ?? { id: id ?? '?', name: 'Convidado', org: '' }
 
 export type Capability =
-  | 'edit' // change frames directly, commit revisions
-  | 'ai' // request AI changes (clients produce proposals)
-  | 'comment'
-  | 'approve' // approve / request changes on a frame revision
-  | 'decide' // accept or reject client proposals
-  | 'manage' // members, share links, project settings
-  | 'docs' // read confidential context documents
-  | 'history'
+  | 'edit' // change scenes, the briefing and commit versions
+  | 'comment' // write sticky notes
 
 const MATRIX: Record<Role, Capability[]> = {
-  admin: ['edit', 'ai', 'comment', 'approve', 'decide', 'manage', 'docs', 'history'],
-  producer: ['edit', 'ai', 'comment', 'approve', 'decide', 'manage', 'docs', 'history'],
-  editor: ['edit', 'ai', 'comment', 'docs', 'history'],
-  client: ['ai', 'comment', 'approve', 'history'],
+  admin: ['edit', 'comment'],
+  producer: ['edit', 'comment'],
+  editor: ['edit', 'comment'],
+  client: ['comment'],
   viewer: [],
 }
 
@@ -46,7 +31,7 @@ export function roleIn(project: Project | undefined, userId: string): Role | nul
   return project.members.find((m) => m.userId === userId)?.role ?? null
 }
 
-export function can(role: Role | null, cap: Capability): boolean {
+function can(role: Role | null, cap: Capability): boolean {
   return !!role && MATRIX[role].includes(cap)
 }
 
@@ -62,6 +47,7 @@ export class PermissionError extends Error {
   }
 }
 
+// Earlier versions let a tab switch identity and stored it under this key.
 const KEY = 'frameline.session.user'
 
 function initialUser(): string {
@@ -72,20 +58,4 @@ function initialUser(): string {
   }
 }
 
-interface SessionState {
-  userId: string
-  setUser: (id: string) => void
-}
-
-export const useSession = create<SessionState>((set) => ({
-  userId: initialUser(),
-  setUser: (id) => {
-    try {
-      sessionStorage.setItem(KEY, id)
-      localStorage.setItem(KEY, id)
-    } catch {
-      /* storage unavailable */
-    }
-    set({ userId: id })
-  },
-}))
+export const useSession = create<{ userId: string }>(() => ({ userId: initialUser() }))

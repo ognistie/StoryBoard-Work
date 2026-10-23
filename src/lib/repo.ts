@@ -1,19 +1,15 @@
 import { db } from './db'
-import { shortHash, token, uid } from './ids'
-import { assertCan, roleIn, userById, type Capability } from './session'
-import { chunkText, parseScript } from './context'
+import { shortHash, uid } from './ids'
+import { assertCan, roleIn, type Capability } from './session'
 import type {
   AIRecord,
   ArtStyle,
   Asset,
   ContextDoc,
   DocKind,
-  Frame,
   FrameContent,
-  GenerationJob,
   Note,
   Project,
-  Proposal,
   Revision,
   RevisionKind,
   Role,
@@ -33,7 +29,7 @@ export class StaleRevisionError extends Error {
   }
 }
 
-export const CONTENT_KEYS: (keyof FrameContent)[] = [
+const CONTENT_KEYS: (keyof FrameContent)[] = [
   'title',
   'description',
   'action',
@@ -53,7 +49,7 @@ export const CONTENT_KEYS: (keyof FrameContent)[] = [
   'aspect',
 ]
 
-export function contentOf(frame: FrameContent): FrameContent {
+function contentOf(frame: FrameContent): FrameContent {
   const out = {} as Record<string, unknown>
   for (const k of CONTENT_KEYS) out[k] = structuredClone(frame[k])
   return out as unknown as FrameContent
@@ -87,7 +83,7 @@ async function authorize(projectId: string, actorId: string, cap: Capability): P
   return { project, role: role! }
 }
 
-export async function logEvent(projectId: string, actorId: string, type: string, message: string, frameId?: string) {
+async function logEvent(projectId: string, actorId: string, type: string, message: string, frameId?: string) {
   await db.events.add({ id: uid('ev'), projectId, actorId, type, message, frameId, createdAt: Date.now() })
   await db.projects.update(projectId, { updatedAt: Date.now() })
 }
@@ -131,48 +127,6 @@ export async function createProject(input: {
   })
   await logEvent(id, input.ownerId, 'project.created', `Projeto “${input.name}” criado`)
   return id
-}
-
-// ---------------------------------------------------------------- share links
-
-export async function createShareLink(projectId: string, actorId: string, role: Role, days: number, label: string) {
-  await authorize(projectId, actorId, 'manage')
-  const link = {
-    id: uid('lnk'),
-    projectId,
-    token: token(),
-    role,
-    label,
-    expiresAt: Date.now() + days * 86400_000,
-    revoked: false,
-    createdAt: Date.now(),
-    createdBy: actorId,
-  }
-  await db.shareLinks.add(link)
-  await logEvent(projectId, actorId, 'share.created', `Link de acesso criado (${label})`)
-  return link
-}
-
-export async function revokeShareLink(linkId: string, actorId: string) {
-  const link = await db.shareLinks.get(linkId)
-  if (!link) return
-  await authorize(link.projectId, actorId, 'manage')
-  await db.shareLinks.update(linkId, { revoked: true })
-  await logEvent(link.projectId, actorId, 'share.revoked', `Link “${link.label}” revogado`)
-}
-
-/** Redeem a share token: the visiting identity joins the project with the link's role. */
-export async function redeemShareLink(tok: string, userId: string): Promise<string> {
-  const link = await db.shareLinks.where('token').equals(tok).first()
-  if (!link || link.revoked) throw new Error('Este link é inválido ou foi revogado.')
-  if (link.expiresAt < Date.now()) throw new Error('Este link expirou.')
-  const project = await db.projects.get(link.projectId)
-  if (!project) throw new Error('Projeto não encontrado.')
-  if (!project.members.some((m) => m.userId === userId)) {
-    await db.projects.update(project.id, { members: [...project.members, { userId, role: link.role }] })
-    await logEvent(project.id, userId, 'member.joined', `${userById(userId).name} entrou pelo link “${link.label}”`)
-  }
-  return project.id
 }
 
 // ---------------------------------------------------------------- scenes & frames
@@ -246,7 +200,7 @@ export async function commitFrame(
   actorId: string,
   message: string,
   kind: RevisionKind,
-  extra: { ai?: AIRecord; restoredFrom?: string; proposalId?: string; skipAuth?: boolean; authorId?: string } = {},
+  extra: { ai?: AIRecord; restoredFrom?: string; skipAuth?: boolean } = {},
 ): Promise<Revision> {
   return db.transaction('rw', db.frames, db.revisions, db.events, db.projects, async () => {
     const frame = await db.frames.get(frameId)
@@ -260,29 +214,25 @@ export async function commitFrame(
       frameId,
       parentId: frame.headRevisionId,
       number: prev + 1,
-      authorId: extra.authorId ?? actorId,
+      authorId: actorId,
       createdAt: Date.now(),
       message,
       kind,
       snapshot: contentOf(frame),
       ai: extra.ai,
       restoredFrom: extra.restoredFrom,
-      proposalId: extra.proposalId,
     }
     await db.revisions.add(rev)
-    // A new revision after an approval requires a fresh validation.
-    const status = frame.status === 'approved' || frame.status === 'changes' ? 'review' : frame.status
-    await db.frames.update(frameId, { headRevisionId: rev.id, dirty: false, status, contextOutdated: false, updatedAt: Date.now(), updatedBy: actorId })
+    await db.frames.update(frameId, { headRevisionId: rev.id, dirty: false, updatedAt: Date.now(), updatedBy: actorId })
     if (kind !== 'initial') await logEvent(frame.projectId, rev.authorId, 'revision.committed', `${rev.short} — ${message}`, frameId)
     return rev
   })
 }
 
-export async function reorderFrames(projectId: string, actorId: string, orderedIds: string[], moved?: { frameId: string; sceneId: string }) {
+export async function reorderFrames(projectId: string, actorId: string, orderedIds: string[]) {
   await authorize(projectId, actorId, 'edit')
   await db.transaction('rw', db.frames, async () => {
     for (let i = 0; i < orderedIds.length; i++) await db.frames.update(orderedIds[i], { order: i })
-    if (moved) await db.frames.update(moved.frameId, { sceneId: moved.sceneId })
   })
 }
 
@@ -294,121 +244,6 @@ export async function restoreRevision(revisionId: string, actorId: string) {
   await authorize(frame.projectId, actorId, 'edit')
   await db.frames.update(frame.id, { ...structuredClone(rev.snapshot) })
   return commitFrame(frame.id, actorId, `Restaurada a versão ${rev.short} (v${rev.number})`, 'restore', { restoredFrom: rev.id, skipAuth: true })
-}
-
-// ---------------------------------------------------------------- AI candidates
-
-/**
- * Accept a generated candidate. Editors/producers commit a revision directly;
- * clients create a proposal that a producer must decide on.
- * Compare-and-set on the base revision prevents silent overwrites.
- */
-export async function acceptCandidate(jobId: string, actorId: string, opts: { force?: boolean } = {}): Promise<'committed' | 'proposed'> {
-  const job = await db.jobs.get(jobId)
-  if (!job || !job.candidateImageId) throw new Error('Resultado indisponível.')
-  const frame = await db.frames.get(job.frameId)
-  if (!frame) throw new Error('Quadro não encontrado.')
-  const { role } = await authorize(frame.projectId, actorId, 'ai')
-  if (!opts.force && job.baseRevisionId && frame.headRevisionId !== job.baseRevisionId) {
-    await db.jobs.update(jobId, { stale: true })
-    throw new StaleRevisionError()
-  }
-  const canCommit = role === 'admin' || role === 'producer' || role === 'editor'
-  if (!canCommit) {
-    const proposal: Proposal = {
-      id: uid('prp'),
-      projectId: frame.projectId,
-      frameId: frame.id,
-      jobId,
-      baseRevisionId: job.baseRevisionId,
-      candidateImageId: job.candidateImageId,
-      candidateSketch: job.candidateSketch,
-      newDescription: job.newDescription ?? frame.description,
-      instruction: job.instruction,
-      ai: job.ai,
-      authorId: actorId,
-      status: 'open',
-      createdAt: Date.now(),
-    }
-    await db.proposals.add(proposal)
-    await db.jobs.update(jobId, { decision: 'proposed' })
-    await db.frames.update(frame.id, { status: frame.status === 'approved' ? 'approved' : 'review' })
-    await logEvent(frame.projectId, actorId, 'proposal.created', `Propôs alteração em “${frame.title}”: “${job.instruction}”`, frame.id)
-    return 'proposed'
-  }
-  await db.frames.update(frame.id, {
-    imageId: job.candidateImageId,
-    sketch: job.candidateSketch ?? frame.sketch,
-    description: job.newDescription ?? frame.description,
-  })
-  await commitFrame(frame.id, actorId, summarizeInstruction(job), job.kind === 'generate' ? 'ai-generate' : 'ai-edit', { ai: job.ai, skipAuth: true })
-  await db.jobs.update(jobId, { decision: 'accepted' })
-  return 'committed'
-}
-
-function summarizeInstruction(job: GenerationJob) {
-  const t = job.instruction.trim().replace(/\.$/, '')
-  return job.kind === 'generate' ? `Imagem gerada: ${t}` : t.charAt(0).toUpperCase() + t.slice(1)
-}
-
-export async function decideProposal(proposalId: string, actorId: string, accept: boolean, note?: string) {
-  const prop = await db.proposals.get(proposalId)
-  if (!prop || prop.status !== 'open') throw new Error('Proposta não está aberta.')
-  const frame = await db.frames.get(prop.frameId)
-  if (!frame) throw new Error('Quadro não encontrado.')
-  await authorize(prop.projectId, actorId, 'decide')
-  const decider = userById(actorId).name
-  if (accept) {
-    await db.frames.update(frame.id, {
-      imageId: prop.candidateImageId,
-      sketch: prop.candidateSketch ?? frame.sketch,
-      description: prop.newDescription,
-    })
-    const msg = `${prop.instruction.charAt(0).toUpperCase()}${prop.instruction.slice(1).replace(/\.$/, '')} (aprovado por ${decider})`
-    await commitFrame(frame.id, actorId, msg, 'proposal', { ai: prop.ai, proposalId: prop.id, authorId: prop.authorId, skipAuth: true })
-  } else {
-    await db.frames.update(frame.id, { status: frame.approvedRevisionId === frame.headRevisionId ? 'approved' : 'review' })
-  }
-  await db.proposals.update(proposalId, { status: accept ? 'accepted' : 'rejected', decidedBy: actorId, decidedAt: Date.now(), note })
-  if (note) await addComment(prop.projectId, frame.id, actorId, `${accept ? 'Proposta aceita' : 'Proposta recusada'}: ${note}`, undefined, true)
-  await logEvent(prop.projectId, actorId, accept ? 'proposal.accepted' : 'proposal.rejected', `${accept ? 'Aceitou' : 'Recusou'} proposta em “${frame.title}”`, frame.id)
-}
-
-// ---------------------------------------------------------------- approvals & comments
-
-export async function reviewFrame(frameId: string, actorId: string, decision: 'approved' | 'changes', comment?: string) {
-  const frame = await db.frames.get(frameId)
-  if (!frame) return
-  await authorize(frame.projectId, actorId, 'approve')
-  let headId = frame.headRevisionId
-  if (frame.dirty) {
-    // Approval must point to an immutable revision.
-    const rev = await commitFrame(frameId, actorId, 'Versão registrada para validação', 'manual', { skipAuth: true })
-    headId = rev.id
-  }
-  await db.approvals.add({ id: uid('apv'), projectId: frame.projectId, frameId, revisionId: headId!, userId: actorId, decision, comment, createdAt: Date.now() })
-  await db.frames.update(frameId, {
-    status: decision === 'approved' ? 'approved' : 'changes',
-    approvedRevisionId: decision === 'approved' ? headId : frame.approvedRevisionId,
-  })
-  if (comment) await addComment(frame.projectId, frameId, actorId, comment, undefined, true)
-  const rev = headId ? await db.revisions.get(headId) : undefined
-  await logEvent(
-    frame.projectId,
-    actorId,
-    decision === 'approved' ? 'frame.approved' : 'frame.changes',
-    `${decision === 'approved' ? 'Aprovou' : 'Solicitou ajustes em'} “${frame.title}” (v${rev?.number ?? '?'} · ${rev?.short ?? ''})`,
-    frameId,
-  )
-}
-
-export async function addComment(projectId: string, frameId: string, actorId: string, text: string, pin?: { x: number; y: number }, skipAuth = false) {
-  if (!skipAuth) await authorize(projectId, actorId, 'comment')
-  const frame = await db.frames.get(frameId)
-  const id = uid('cmt')
-  await db.comments.add({ id, projectId, frameId, revisionId: frame?.headRevisionId, authorId: actorId, text, pin, resolved: false, createdAt: Date.now() })
-  if (!skipAuth) await logEvent(projectId, actorId, 'comment.added', `Comentou em “${frame?.title ?? 'quadro'}”`, frameId)
-  return id
 }
 
 // ---------------------------------------------------------------- context documents
@@ -431,7 +266,6 @@ export async function saveDoc(
     fileName: input.fileName ?? existing?.fileName,
     version,
     text: input.text,
-    chunks: chunkText(input.text, input.kind),
     confidential: input.confidential,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -442,24 +276,7 @@ export async function saveDoc(
     await db.docVersions.add({ id: uid('dv'), docId: id, version, text: input.text, createdAt: now, authorId: actorId })
     await logEvent(projectId, actorId, 'doc.saved', `Documento “${input.title}” ${existing ? `atualizado para v${version}` : 'adicionado'}`)
   }
-  if (input.kind === 'script' && existing && existing.text !== input.text) await syncScenesFromScript(projectId, input.text)
   return id
-}
-
-/** After a script change, update scene metadata and flag frames whose scene text changed. */
-export async function syncScenesFromScript(projectId: string, text: string): Promise<number> {
-  const parsed = parseScript(text)
-  const scenes = await db.scenes.where('projectId').equals(projectId).toArray()
-  let flagged = 0
-  for (const ps of parsed) {
-    const scene = scenes.find((s) => s.number === ps.number)
-    if (!scene) continue
-    if (scene.scriptExcerpt.trim() !== ps.excerpt.trim()) {
-      await db.scenes.update(scene.id, { heading: ps.heading, timeOfDay: ps.timeOfDay, scriptExcerpt: ps.excerpt, characters: ps.characters, summary: ps.summary })
-      flagged += await db.frames.where('sceneId').equals(scene.id).modify({ contextOutdated: true })
-    }
-  }
-  return flagged
 }
 
 // ---------------------------------------------------------------- assets
@@ -471,12 +288,6 @@ export async function saveAsset(projectId: string, actorId: string, asset: Parti
   await db.assets.put({ description: '', createdAt: Date.now(), ...existing, ...asset, id, projectId })
   if (!existing) await logEvent(projectId, actorId, 'asset.added', `Asset “${asset.name}” adicionado`)
   return id
-}
-
-// ---------------------------------------------------------------- snapshots
-
-export function frameNeedsRevalidation(frame: Frame) {
-  return !!frame.approvedRevisionId && (frame.approvedRevisionId !== frame.headRevisionId || frame.dirty)
 }
 
 // ---------------------------------------------------------------- notes

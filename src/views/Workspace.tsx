@@ -9,7 +9,7 @@ import { ExportMenu } from './workspace/ExportMenu'
 import { BottomSheet } from './workspace/BottomSheet'
 import { Inspector, InspectorSheetContent } from './workspace/Inspector'
 import { PromptBox } from './workspace/PromptBox'
-import { AddNoteButton, SceneCanvas, ZoomControl } from './workspace/SceneCanvas'
+import { SceneCanvas, ZoomControl } from './workspace/SceneCanvas'
 import { useWS } from './workspace/store'
 import { useAddNote } from './workspace/useAddNote'
 import { useScreen } from './workspace/useScreen'
@@ -47,10 +47,6 @@ export function Workspace({ projectId }: { projectId: string }) {
   const userId = useSession((s) => s.userId)
   const data = useWorkspaceData(projectId)
 
-  useEffect(() => {
-    useWS.getState().reset()
-  }, [projectId])
-
   if (!data) return <Centered>Carregando projeto…</Centered>
   if (!data.project)
     return (
@@ -80,7 +76,8 @@ export function Workspace({ projectId }: { projectId: string }) {
 
   return (
     <WorkspaceCtx.Provider value={wd}>
-      <ReactFlowProvider>
+      {/* Keyed by project, so opening another project starts from a fresh canvas and selection. */}
+      <ReactFlowProvider key={projectId}>
         <WorkspaceLayout />
       </ReactFlowProvider>
     </WorkspaceCtx.Provider>
@@ -88,19 +85,19 @@ export function Workspace({ projectId }: { projectId: string }) {
 }
 
 /**
- * Opens the project with the scene changed last selected. After that the user owns the selection:
- * clicking the empty canvas or pressing Esc clears it, and a removed scene clears it too.
+ * Opens the project with fresh canvas state and the scene changed last selected; a tie goes to the later scene.
+ * After that the user owns the selection: clicking the empty canvas or pressing Esc clears it, and a removed scene clears it too.
  */
-function useInitialSceneSelection() {
+function useOpenProject() {
   const { ordered } = useWD()
   const selectedId = useWS((s) => s.selectedId)
   const opened = useRef(false)
   useEffect(() => {
-    if (!ordered.length) return
     if (!opened.current) {
       opened.current = true
-      const latest = ordered.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
-      useWS.getState().set({ selectedId: latest.id })
+      useWS.getState().reset()
+      const latest = ordered.reduce<(typeof ordered)[number] | undefined>((a, b) => (!a || b.updatedAt >= a.updatedAt ? b : a), undefined)
+      useWS.getState().set({ selectedId: latest?.id })
     } else if (selectedId && !ordered.some((f) => f.id === selectedId)) useWS.getState().set({ selectedId: undefined })
   }, [selectedId, ordered])
 }
@@ -132,8 +129,8 @@ function Avatar({ initials }: { initials: string }) {
   return <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl bg-[#E4E4E7] text-[11px] leading-[14px] font-semibold text-[#18181B]">{initials}</span>
 }
 
-/** Desktop and tablet header. On a narrow tablet the project name truncates first. */
-function Header() {
+/** Desktop and tablet header. `compact` (tablet) shrinks Exportar to an icon; if room still runs out, the project name truncates first. */
+function Header({ compact = false }: { compact?: boolean }) {
   const { project, me, stats } = useProjectStats()
   return (
     <header className="absolute inset-x-0 top-0 flex h-[72px] items-center justify-between gap-6 px-7">
@@ -150,7 +147,7 @@ function Header() {
       </div>
       <div className="flex shrink-0 items-center gap-6">
         <div className="flex items-center gap-2">
-          <ExportMenu />
+          <ExportMenu iconOnly={compact} />
           <button onClick={publish} className="flex h-9 items-center rounded-full bg-accent px-5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
             Publicar
           </button>
@@ -192,11 +189,21 @@ function NoteIcon({ size }: { size: number }) {
   )
 }
 
+/** The bare note icon that drops a new sticky note, next to the zoom on desktop and tablet. */
+function NoteButton() {
+  const addNote = useAddNote()
+  return (
+    <button aria-label="Nova nota" title="Nova nota" onClick={() => void addNote()} className="flex size-7 items-center justify-center rounded-md transition-transform hover:scale-110 active:scale-95">
+      <NoteIcon size={28} />
+    </button>
+  )
+}
+
 const GLASS_PILL = 'glass !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A]'
 
 function WorkspaceLayout() {
   const screen = useScreen()
-  useInitialSceneSelection()
+  useOpenProject()
   if (screen === 'mobile') return <MobileLayout />
   if (screen === 'tablet') return <TabletLayout />
   return <DesktopLayout />
@@ -214,8 +221,8 @@ function DesktopLayout() {
       <div className="absolute bottom-8 left-8">
         <ZoomControl />
       </div>
-      <div className="absolute bottom-8 left-[174px]">
-        <AddNoteButton />
+      <div className="absolute bottom-10 left-[180px]">
+        <NoteButton />
       </div>
 
       {/* Centred on the whole screen, and never under the inspector: 32 margin + 350 panel + 16 gap on each side. */}
@@ -234,12 +241,11 @@ const TABLET_SHEET = 340
 
 /** Tablet: the inspector becomes a bottom sheet; zoom and the note button sit in a row above the prompt box. */
 function TabletLayout() {
-  const addNote = useAddNote()
   // Not in the design: tapping the grabber expands the sheet to read long histories, and hides the prompt box meanwhile.
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="relative h-full min-h-[600px] overflow-hidden bg-[#F4F4F5]">
-      <Header />
+      <Header compact />
 
       <div className="absolute inset-x-4 top-[72px] bottom-4 overflow-hidden rounded-[20px] border border-[#E4E4E7]">
         <SceneCanvas />
@@ -249,9 +255,7 @@ function TabletLayout() {
         <div className="absolute left-1/2 flex -translate-x-1/2 flex-col gap-3" style={{ width: 'min(704px, calc(100% - 64px))', bottom: TABLET_SHEET + 16 }}>
           <div className="flex items-center gap-[18px]">
             <ZoomControl />
-            <button aria-label="Nova nota" onClick={() => void addNote()} className="flex size-7 items-center justify-center rounded-md transition-transform hover:scale-110">
-              <NoteIcon size={28} />
-            </button>
+            <NoteButton />
           </div>
           <PromptBox />
         </div>
@@ -319,7 +323,7 @@ function MobileLayout() {
       {sheetOpen && (
         <>
           <div aria-hidden onClick={() => setSheetOpen(false)} className="fade-in absolute inset-0 bg-black/20" />
-          <BottomSheet className="slide-up inset-x-0" height="70%" onGrab={() => setSheetOpen(false)} grabLabel="Fechar versões">
+          <BottomSheet modal className="slide-up inset-x-0" height="70%" onGrab={() => setSheetOpen(false)} grabLabel="Fechar versões">
             <InspectorSheetContent layout="stack" />
           </BottomSheet>
         </>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { specFromDescription } from '../lib/sketchOps'
+import { lookFor, specFromDescription } from '../lib/sketchOps'
 
 describe('specFromDescription', () => {
   it('reads what the scene shows, in the order the text mentions it', () => {
@@ -38,5 +38,21 @@ describe('specFromDescription', () => {
 
   it('keeps the frame format', () => {
     expect(specFromDescription('Logo da marca.', { aspect: '1:1' }).aspect).toBe('1:1')
+  })
+})
+
+describe('character looks', () => {
+  it('reads wardrobe and hair from a description so looks stay consistent', () => {
+    expect(lookFor('Mulher, 35 anos, cabelo cacheado, casaco amarelo')).toEqual({ hair: 'curly', outfit: 'jacket', beard: undefined })
+    expect(lookFor('Homem, barba curta, camisa xadrez')).toMatchObject({ outfit: 'striped', beard: true })
+  })
+})
+
+describe('legacy scene specs', () => {
+  it('builds a setting, time and people from a description', () => {
+    const spec = specFromDescription('Família na sala, sentada no sofá à noite')
+    expect(spec.setting).toBe('living')
+    expect(spec.time).toBe('night')
+    expect(spec.people.length).toBe(3)
   })
 })

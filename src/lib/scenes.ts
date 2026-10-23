@@ -74,8 +74,8 @@ async function loadProject(projectId: string, userId: string) {
   return project
 }
 
-function aiRecord(instruction: string, basePrompt: string, latencyMs: number, summary: string): AIRecord {
-  return { instruction, basePrompt, structuredPrompt: '', provider: openaiProvider.label, model: openaiProvider.model, isDemo: false, contextRefs: [], latencyMs, summary }
+function aiRecord(instruction: string, latencyMs: number, summary: string): AIRecord {
+  return { instruction, provider: openaiProvider.label, model: openaiProvider.model, latencyMs, summary }
 }
 
 /** Saves `fields` as a new version. When the visual fields changed, redraws the scene unless its image is a real one. */
@@ -123,7 +123,7 @@ export async function reviseScene(input: { frameId: string; instruction: string;
 
   // "Só o diálogo" and "Mais curta" never touch the drawing.
   const wantsRedraw = (input.focus === 'all' || input.focus === 'drawing') && changesDrawing(current, next)
-  await commitSceneVersion(frame, project, next, wantsRedraw, input.userId, instruction, 'ai-edit', aiRecord(instruction, frame.description, latencyMs, response.summary))
+  await commitSceneVersion(frame, project, next, wantsRedraw, input.userId, instruction, 'ai-edit', aiRecord(instruction, latencyMs, response.summary))
 }
 
 /**
@@ -169,7 +169,7 @@ export async function applyBriefingChange(input: { projectId: string; briefing: 
     const frame = byId.get(change.id)!
     const current = sceneFieldsOf(frame)
     if (!changedSceneFields(current, change.scene).length) continue
-    await commitSceneVersion(frame, project, change.scene, changesDrawing(current, change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, frame.description, latencyMs, change.reason))
+    await commitSceneVersion(frame, project, change.scene, changesDrawing(current, change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, latencyMs, change.reason))
     changed.push(frame.id)
   }
   return changed

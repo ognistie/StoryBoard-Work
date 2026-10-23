@@ -40,11 +40,9 @@ Modelo: `gpt-6.1-sol`, definido em `src/lib/ai/server.ts`. As chamadas passam pe
 
 ## Linguagem visual dos quadros
 
-- **Cards de storyboard**: número do quadro em círculo, código profissional do plano (`C1 / 0010`, `C1 / 0020`…), painel com borda de tinta, legenda centralizada (fala ou ação) e rodapé com status, enquadramento, movimento e duração.
-- **Indicações de câmera em vermelho** sobre o quadro (PAN, TILT, DOLLY IN, ZOOM, TRACKING, TRUCK, GRUA, câmera na mão), geradas a partir do campo “Movimento”. São uma camada separada da imagem e aparecem também no modo ampliado, na apresentação e no PDF. O botão de câmera na barra liga e desliga.
-- **Renderizador do modo demo** (`src/lib/sketch.ts`): personagens em tinta escura com rosto, cabelo, figurino e expressão; cenários em lápis mais claro, para separar figura e fundo; enquadramentos coerentes (o médio corta na cintura, o americano no joelho, o close no rosto). Os traços de cada personagem vêm da ficha em Assets (“cabelo cacheado”, “boné”, “camisa xadrez”…), o que mantém a continuidade entre quadros.
+- **Nós de cena** no estilo do Magnific (Paper, `02 — Canvas`): o desenho ocupa o cartão no formato da cena, com a pílula de versão, a fala e as pílulas de plano, câmera e formato embaixo.
+- **Renderizador local** (`src/lib/sketch.ts`): desenha cada cena nova a partir da descrição, com traço preto fino, cinza claro, azul só nos objetos-chave e uma seta vermelha para o movimento de câmera. Os projetos de exemplo usam desenhos prontos de `public/demo/`, que a IA nunca substitui.
 - Em desenvolvimento, `#/lab` mostra uma galeria do renderizador com todos os enquadramentos.
-- Quem já tinha dados do estilo antigo no navegador recebe as imagens de demonstração redesenhadas automaticamente na primeira abertura. Ids, versões e histórico não mudam.
 
 ## Arquitetura e decisões
 

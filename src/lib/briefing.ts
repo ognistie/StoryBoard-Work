@@ -80,7 +80,7 @@ export async function createProjectFromBriefing(input: { briefing: string; forma
     await createFrame(projectId, sceneId, input.userId, { ...scene, ...drawings[i] }, {
       message: 'Cena proposta pelo briefing',
       kind: 'initial',
-      ai: { instruction: briefing, basePrompt: '', structuredPrompt: '', provider: openaiProvider.label, model: openaiProvider.model, isDemo: false, contextRefs: [], latencyMs },
+      ai: { instruction: briefing, provider: openaiProvider.label, model: openaiProvider.model, latencyMs },
     })
   }
   return projectId

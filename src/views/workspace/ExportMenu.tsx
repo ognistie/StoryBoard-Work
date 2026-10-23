@@ -1,4 +1,4 @@
-import { FileDown, FileText, Printer, Table } from 'lucide-react'
+import { Download, FileDown, FileText, Printer, Table } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FrameImage } from '../../components/FrameImage'
@@ -27,8 +27,11 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/gi, '-')
     .toLowerCase()
 
-/** Exports the scene plan: PDF, Markdown script, CSV shot list, or the whole project as JSON. */
-export function ExportMenu() {
+/**
+ * Exports the scene plan: PDF, Markdown script, CSV shot list, or the whole project as JSON.
+ * @param iconOnly A 36px icon instead of the word, for the tablet header where the project name needs the room.
+ */
+export function ExportMenu({ iconOnly = false }: { iconOnly?: boolean }) {
   const { project, ordered, scenes, briefing } = useWD()
   const [printing, setPrinting] = useState(false)
 
@@ -100,11 +103,17 @@ export function ExportMenu() {
     <>
       <Menu
         align="right"
-        trigger={(toggle) => (
-          <button onClick={toggle} className="flex h-9 items-center rounded-full px-4 text-[14px] leading-[18px] font-medium text-[#18181B] transition-colors hover:bg-black/5">
-            Exportar
-          </button>
-        )}
+        trigger={(toggle) =>
+          iconOnly ? (
+            <button onClick={toggle} aria-label="Exportar" title="Exportar" className="flex size-9 items-center justify-center rounded-full text-[#18181B] transition-colors hover:bg-black/5">
+              <Download className="size-[18px]" strokeWidth={1.8} aria-hidden />
+            </button>
+          ) : (
+            <button onClick={toggle} className="flex h-9 items-center rounded-full px-4 text-[14px] leading-[18px] font-medium text-[#18181B] transition-colors hover:bg-black/5">
+              Exportar
+            </button>
+          )
+        }
       >
         {(close) => (
           <>

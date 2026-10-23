@@ -1,6 +1,6 @@
 import { norm } from './context'
 import type { SketchSubject, StoryboardSpec } from './sketch'
-import type { Asset, HairStyle, Outfit, Project, Region, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
+import type { Asset, HairStyle, Outfit, Project, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
 
 /**
  * Pure functions that turn short natural-language deltas into SketchSpec changes.
@@ -20,21 +20,6 @@ const PROPS: [RegExp, string][] = [
 
 const PERSON_WORDS = /\b(pessoa|pessoas|alguem|homem|mulher|crianca|criancas|menino|menina|personagem|figurante|amig\w*|vizinh\w*|corretor\w*|senhor\w*|filh\w*|pai|mae|avo|gestor\w*|lojista|barista|cliente|apresentador\w*|profissional|colaborador\w*|funcionari\w*|atendente|instrutor\w*|alun[oa]s?|dono|dona|ela|ele)\b/
 const GROUP_WORDS = /\b(time|equipe|reuniao|grupo|colegas|todos)\b/
-const ADD = /\b(adicion\w*|inclu\w*|coloc\w*|acrescent\w*|bot\w*|insir\w*|insere|por mais|mais uma|mais um|aparec\w*)\b/
-const REMOVE = /\b(remov\w*|tir\w*|apag\w*|exclu\w*|elimin\w*)\b/
-const NUMBERS: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, '2': 2, '3': 3 }
-
-const SHOTS: [RegExp, ShotType][] = [
-  [/extreme close|close extremo|super close/, 'extreme-close'],
-  [/close|plano fechado|primeiro plano|aproxim/, 'close'],
-  [/plano geral|bem aberto|muito aberto/, 'geral'],
-  [/plano aberto|abrir o plano|mais aberto|afast/, 'aberto'],
-  [/americano/, 'americano'],
-  [/plano medio|meio corpo/, 'medio'],
-  [/detalhe/, 'detalhe'],
-  [/\bpov\b|ponto de vista|subjetiva/, 'pov'],
-  [/ombro|over the shoulder|\bots\b/, 'ots'],
-]
 
 const CHILD_RE = /\b(crianca|menino|menina|filh[oa]|garot[oa]|\d\s?anos)\b/
 
@@ -78,125 +63,6 @@ export function lookFor(description = ''): Pick<SketchPerson, 'hair' | 'outfit' 
 function charactersIn(text: string, characters: Asset[]): Asset[] {
   const n = ` ${norm(text)} `
   return characters.filter((c) => c.type === 'character' && new RegExp(`[\\s@]${norm(c.name).split(' ')[0]}[\\s,.!?]`).test(n))
-}
-
-function placeX(spec: SketchSpec, where: 'left' | 'right' | 'center', region?: Region): number {
-  if (region) return Math.min(0.95, Math.max(0.05, region.x + region.w / 2))
-  const xs = spec.people.map((p) => p.x)
-  if (where === 'center') return 0.5
-  if (where === 'left') return Math.max(0.08, (xs.length ? Math.min(...xs) : 0.5) - 0.15)
-  return Math.min(0.92, (xs.length ? Math.max(...xs) : 0.5) + 0.15)
-}
-
-export function applyInstruction(
-  base: SketchSpec,
-  instruction: string,
-  opts: { region?: Region; characters?: Asset[] } = {},
-): { spec: SketchSpec; understood: string[] } {
-  const spec: SketchSpec = structuredClone(base)
-  const ins = norm(instruction)
-  const understood: string[] = []
-  const chars = charactersIn(instruction, opts.characters ?? [])
-  const where: 'left' | 'right' | 'center' = /esquerda/.test(ins) ? 'left' : /centro|meio/.test(ins) ? 'center' : 'right'
-  const removing = REMOVE.test(ins)
-
-  // people
-  if (!removing && (ADD.test(ins) || /\bmais\b/.test(ins)) && (PERSON_WORDS.test(ins) || chars.length)) {
-    const named = chars.filter((c) => !spec.people.some((p) => p.name && norm(p.name) === norm(c.name)))
-    const countWord = ins.match(/\b(um|uma|dois|duas|tres|2|3)\s+(pessoa|crianca|homem|mulher|menin|amig|figurante)/)
-    const count = named.length || (countWord ? NUMBERS[countWord[1]] : 1)
-    for (let i = 0; i < count; i++) {
-      const asset = named[i]
-      const person: SketchPerson = {
-        ...lookFor(asset?.description),
-        x: placeX(spec, where, opts.region),
-        name: asset?.name,
-        kind: asset ? (isChildAsset(asset) ? 'child' : 'adult') : CHILD_RE.test(ins) ? 'child' : 'adult',
-        pose: /acen/.test(ins) ? 'wave' : /sentad/.test(ins) ? 'sit' : /andando|caminhando/.test(ins) ? 'walk' : 'stand',
-        facing: where === 'right' ? 'left' : 'right',
-        expression: expressionIn(ins),
-      }
-      spec.people.push(person)
-    }
-    understood.push(count > 1 ? `adicionar ${count} pessoas` : `adicionar ${named[0]?.name ?? 'uma pessoa'}`)
-  } else if (removing && (PERSON_WORDS.test(ins) || chars.length)) {
-    const byName = chars.length ? spec.people.findIndex((p) => p.name && chars.some((c) => norm(c.name) === norm(p.name!))) : -1
-    let idx = byName
-    if (idx < 0 && spec.people.length) {
-      const sorted = spec.people.map((p, i) => ({ p, i })).sort((a, b) => a.p.x - b.p.x)
-      idx = where === 'left' ? sorted[0].i : where === 'center' ? sorted[Math.floor(sorted.length / 2)].i : sorted.at(-1)!.i
-    }
-    if (idx >= 0) {
-      understood.push(`remover ${spec.people[idx].name ?? 'pessoa'}`)
-      spec.people.splice(idx, 1)
-    }
-  }
-
-  // poses on existing people
-  if (!ADD.test(ins) && !removing) {
-    const target = chars.length ? spec.people.find((p) => p.name && chars.some((c) => norm(c.name) === norm(p.name!))) : spec.people.at(-1)
-    if (target) {
-      if (/acen/.test(ins)) (target.pose = 'wave'), understood.push('acenando')
-      else if (/sentad|sentar/.test(ins)) (target.pose = 'sit'), understood.push('sentado')
-      else if (/andando|caminh/.test(ins)) (target.pose = 'walk'), understood.push('caminhando')
-      const ex = expressionIn(ins)
-      if (ex) (target.expression = ex), understood.push(`expressão: ${ex}`)
-      if (/olhando para (a )?esquerda/.test(ins)) (target.facing = 'left'), understood.push('olhar à esquerda')
-      if (/olhando para (a )?direita/.test(ins)) (target.facing = 'right'), understood.push('olhar à direita')
-    }
-  }
-
-  // time of day / weather
-  const time: [RegExp, TimeOfDay, string][] = [
-    [/noite|noturn|escur/, 'night', 'noite'],
-    [/por do sol|entardecer|fim de tarde|golden hour/, 'sunset', 'pôr do sol'],
-    [/\bdia\b|manha|ensolarad|luz do dia/, 'day', 'dia'],
-  ]
-  for (const [re, t, label] of time) {
-    if (re.test(ins)) {
-      spec.time = t
-      understood.push(label)
-      break
-    }
-  }
-  if (/chuv/.test(ins)) {
-    spec.weather = /sem chuva|parar de chover|tir\w* a chuva|remov\w* a chuva/.test(ins) ? 'none' : 'rain'
-    understood.push(spec.weather === 'rain' ? 'chuva' : 'sem chuva')
-  }
-
-  // framing
-  for (const [re, shot] of SHOTS) {
-    if (re.test(ins)) {
-      spec.shot = shot
-      understood.push(`enquadramento: ${shot}`)
-      break
-    }
-  }
-
-  // props
-  for (const [re, prop] of PROPS) {
-    if (!re.test(ins)) continue
-    if (removing) {
-      if (spec.props.includes(prop)) {
-        spec.props = spec.props.filter((p) => p !== prop)
-        understood.push(`remover ${prop}`)
-      }
-    } else if (!spec.props.includes(prop)) {
-      spec.props.push(prop)
-      understood.push(`adicionar ${prop}`)
-    }
-  }
-
-  if (!understood.length) spec.seed = base.seed + 1
-  return { spec, understood }
-}
-
-function expressionIn(ins: string): SketchPerson['expression'] {
-  if (/surpres|assustad|espant|choque/.test(ins)) return 'surprised'
-  if (/(^|\s)rindo|gargalh|empolgad|feliz demais/.test(ins)) return 'laugh'
-  if (/serio|neutr|pensativ/.test(ins)) return 'neutral'
-  if (/sorri/.test(ins)) return 'smile'
-  return undefined
 }
 
 const SETTINGS: [RegExp, SketchSpec['setting']][] = [

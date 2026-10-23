@@ -1,4 +1,3 @@
-import { chunkText } from './context'
 import { db } from './db'
 import { shortHash, uid } from './ids'
 import { emptyContent, putImage } from './repo'
@@ -307,8 +306,8 @@ async function loadImage(image: SeedFrame['image']) {
   return putImage(blob, width, height)
 }
 
-function aiRecord(instruction: string, basePrompt: string): AIRecord {
-  return { instruction, basePrompt, structuredPrompt: instruction, provider: 'OpenAI', model: 'gpt-6.1-sol', isDemo: false, contextRefs: [] }
+function aiRecord(instruction: string): AIRecord {
+  return { instruction, provider: 'OpenAI', model: 'gpt-6.1-sol' }
 }
 
 async function seedProject(seed: SeedProject, now: number) {
@@ -327,7 +326,6 @@ async function seedProject(seed: SeedProject, now: number) {
     title: 'Briefing',
     version: seed.briefing.length,
     text: briefing,
-    chunks: chunkText(briefing, 'brief'),
     confidential: false,
     createdAt,
     updatedAt,
@@ -356,7 +354,7 @@ async function seedProject(seed: SeedProject, now: number) {
         message: v.message,
         kind: v.kind,
         snapshot,
-        ai: v.kind === 'initial' || v.kind === 'manual' ? undefined : aiRecord(v.message, revs[i - 1]?.snapshot.description ?? snapshot.description),
+        ai: v.kind === 'initial' || v.kind === 'manual' ? undefined : aiRecord(v.message),
       })
     }
     await db.revisions.bulkAdd(revs)

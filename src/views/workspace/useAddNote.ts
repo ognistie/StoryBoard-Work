@@ -3,7 +3,7 @@ import { toastError } from '../../components/ui'
 import { createNote } from '../../lib/repo'
 import { useWD } from './context'
 
-/** Drops a new sticky note in the middle of what is on screen, the same way the desktop "Nota" button does. */
+/** Drops a new sticky note in the middle of what is on screen. */
 export function useAddNote() {
   const { project, userId } = useWD()
   const { screenToFlowPosition } = useReactFlow()

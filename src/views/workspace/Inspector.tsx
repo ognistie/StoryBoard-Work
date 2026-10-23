@@ -57,10 +57,11 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
   const original = rev.kind === 'initial'
   // Versions made by a person carry an author line; the briefing ones explain themselves.
   const withAuthor = !original && rev.kind !== 'briefing'
+  const previewing = browsing === rev.id
 
   const preview = () => {
     const next = { ...useWS.getState().browsing }
-    if (current || browsing === rev.id) delete next[rev.frameId]
+    if (current || previewing) delete next[rev.frameId]
     else next[rev.frameId] = rev.id
     useWS.getState().set({ browsing: next })
   }
@@ -86,7 +87,7 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
       className={cx(
         'group flex cursor-pointer flex-col rounded-[14px] p-3.5 transition-colors',
         rev.kind === 'briefing' ? 'gap-2' : 'gap-1.5',
-        current ? 'bg-[#F4F4F5]' : browsing === rev.id ? 'bg-[#0071E30D]' : 'hover:bg-[#FAFAFA]',
+        current ? 'bg-[#F4F4F5]' : previewing ? 'bg-[#0071E30D]' : 'hover:bg-[#FAFAFA]',
       )}
     >
       <div className="flex items-center justify-between">
@@ -100,12 +101,16 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
         {withAuthor || current ? (
           <span className="text-[12px] leading-4 text-faint">{timeAgo(rev.createdAt)}</span>
         ) : (
+          // Restaurar takes the timestamp's place on hover, or while the row is previewed (how a touch screen gets to it).
           <span className="relative flex h-4 items-center">
-            <span className="text-[12px] leading-4 text-faint transition-opacity group-hover:opacity-0 [@media(hover:none)]:opacity-0">{timeAgo(rev.createdAt)}</span>
+            <span className={cx('text-[12px] leading-4 text-faint transition-opacity group-hover:opacity-0', previewing && 'opacity-0')}>{timeAgo(rev.createdAt)}</span>
             <button
               disabled={busy}
               onClick={(e) => (e.stopPropagation(), void restore())}
-              className="absolute right-0 flex h-7 items-center rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
+              className={cx(
+                'absolute right-0 flex h-7 items-center rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap text-accent transition-opacity',
+                previewing ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus:pointer-events-auto focus:opacity-100',
+              )}
             >
               Restaurar
             </button>
@@ -121,7 +126,7 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
         </div>
       )}
       {withAuthor && (
-        <div className={cx('flex items-center justify-between pt-0.5', !current && 'min-h-7')}>
+        <div className={cx('flex items-center justify-between', !current && 'min-h-7 pt-0.5')}>
           <span className="text-[12px] leading-4 text-muted">
             {author} · {changeSummary(rev, parent)}
           </span>
@@ -129,7 +134,7 @@ function VersionRow({ rev, parent, current, userId }: { rev: Revision; parent?: 
             <button
               disabled={busy}
               onClick={(e) => (e.stopPropagation(), void restore())}
-              className="flex h-7 items-center gap-1.5 rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold text-accent opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100"
+              className="flex h-7 items-center gap-1.5 rounded-[14px] bg-[#0071E31A] px-3 text-[13px] leading-4 font-semibold text-accent transition-colors hover:bg-[#0071E326]"
             >
               {busy && <Spinner className="size-3.5 text-accent" />}
               Restaurar
@@ -154,7 +159,8 @@ function Versions({ frame, revisions }: { frame: Frame; revisions: Revision[] })
 }
 
 const FIELD_LABEL = 'text-[12px] leading-4 font-medium text-muted'
-const FIELD = 'w-full rounded-[10px] border border-[#E4E4E7] bg-white px-3 py-2 text-[14px] leading-5 text-[#18181B] outline-none transition-colors focus:border-accent'
+// 16px on a phone: iOS zooms into any field with smaller text.
+const FIELD = 'w-full rounded-[10px] border border-[#E4E4E7] bg-white px-3 py-2 text-[14px] leading-5 text-[#18181B] outline-none transition-colors focus:border-accent max-md:text-[16px] max-md:leading-[22px]'
 
 function Sheet({ frame }: { frame: Frame }) {
   const { project, userId } = useWD()
@@ -260,8 +266,17 @@ function SceneTitle({ index, frame }: { index: number; frame: Frame }) {
 function NoScene() {
   const { ordered } = useWD()
   return (
-    <div className="flex flex-1 items-center justify-center px-8 text-center text-[14px] leading-5 text-muted">
-      {ordered.length ? 'Selecione uma cena para ver as versões e a ficha.' : 'Este projeto ainda não tem cenas.'}
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-[#F4F4F5]">
+        <svg width="16" height="16" viewBox="0 0 12 12" aria-hidden>
+          <rect x="1" y="2" width="10" height="8" rx="1.5" fill="none" stroke="#71717B" strokeWidth="1" />
+          <path d="M1 4.5h10" fill="none" stroke="#71717B" strokeWidth="1" />
+        </svg>
+      </span>
+      <div className="flex flex-col gap-1">
+        <span className="text-[15px] leading-5 font-medium text-[#18181B]">{ordered.length ? 'Nenhuma cena selecionada' : 'Este projeto ainda não tem cenas'}</span>
+        {ordered.length > 0 && <span className="max-w-60 text-[13px] leading-[18px] text-balance text-muted">Clique numa cena no canvas para ver as versões e a ficha.</span>}
+      </div>
     </div>
   )
 }

@@ -11,8 +11,8 @@ import type { HairStyle, Outfit, Project, ShotType, SketchPerson, SketchSpec } f
  * - thick panel border, clean white paper.
  */
 
-export const SKETCH_W = 1280
-export const SKETCH_H = 720
+const SKETCH_W = 1280
+const SKETCH_H = 720
 
 /** Things a storyboard frame can show, read from the scene text by specFromDescription. */
 export type SketchSubject =
@@ -1524,9 +1524,3 @@ export function toBlob(canvas: HTMLCanvasElement, quality = 0.9): Promise<Blob> 
 }
 
 /** Draw an ink figure on top of an arbitrary image (demo fallback for uploaded images). */
-export function overlayPerson(ctx: Ctx, w: number, h: number, person: SketchPerson, seed: number) {
-  const p = new Pen(ctx, seed, w / 960)
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  drawPerson(p, person, w, h, h * 0.62, 0.42, 'aberto')
-}

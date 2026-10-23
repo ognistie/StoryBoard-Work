@@ -15,6 +15,8 @@ const DURATION_OPTIONS = [15, 30, 60]
 
 // Lighter glass for the controls that sit inside the composer.
 const INNER_GLASS = 'border border-white/75 bg-white/55 shadow-[inset_0_1px_0_rgb(255_255_255/0.9)]'
+// The field's own glass, for chips that sit outside it on the background.
+const CHIP_GLASS = 'border border-white/70 bg-white/42 shadow-[inset_0_1px_0_rgb(255_255_255/0.9),0_4px_16px_rgb(0_0_0/0.08)] backdrop-blur-[24px] backdrop-saturate-[1.8]'
 const MAX_FIELD_HEIGHT = 160
 
 function Chevron() {
@@ -28,13 +30,14 @@ function Chevron() {
 // On phones the format and length leave the field and sit below it as chips with the field's own glass.
 const PILL_STYLE = {
   inline: cx('hidden h-11 rounded-full px-4 md:flex', INNER_GLASS),
-  chip: 'flex h-9 rounded-[18px] border border-white/70 bg-white/42 px-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.9),0_4px_16px_rgb(0_0_0/0.08)] backdrop-blur-[24px] backdrop-saturate-[1.8] md:hidden',
+  chip: cx('flex h-9 rounded-[18px] px-3.5 md:hidden', CHIP_GLASS),
 }
 
 // The visible label sizes the pill; the native select sits invisibly on top, so the pill is as wide as the current choice.
+// Because the select is invisible, the pill draws its keyboard focus ring.
 function PillSelect<T extends string | number>({ label, value, options, onChange, disabled, variant }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; disabled: boolean; variant: keyof typeof PILL_STYLE }) {
   return (
-    <div className={cx('relative shrink-0 items-center gap-1.5 transition-colors focus-within:bg-white/80 hover:bg-white/80', PILL_STYLE[variant])}>
+    <div className={cx('relative shrink-0 items-center gap-1.5 transition-colors focus-within:bg-white/80 hover:bg-white/80 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent', PILL_STYLE[variant])}>
       <span className="text-[14px] leading-[18px] font-medium text-fg">{options.find((o) => o.value === value)?.label}</span>
       <Chevron />
       <select
@@ -157,12 +160,12 @@ export function BriefingComposer() {
       <div className="flex gap-2 md:hidden">{selects('chip')}</div>
 
       {(file || busy) && (
-        <div className="flex items-center justify-center gap-2 text-[13px] text-muted">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-muted md:justify-center">
           {file && (
-            <span className={cx('flex h-7 items-center gap-1.5 rounded-full pr-1 pl-2.5 text-fg-2', INNER_GLASS)}>
+            <span className={cx('flex h-7 min-w-0 items-center gap-1.5 rounded-full pr-1 pl-2.5 text-fg-2', CHIP_GLASS)}>
               <Paperclip className="size-3.5" />
               <span className="max-w-60 truncate">{file.name}</span>
-              <button type="button" aria-label="Remover anexo" disabled={busy} onClick={() => setFile(undefined)} className="flex size-5 items-center justify-center rounded-full hover:bg-black/5">
+              <button type="button" aria-label="Remover anexo" disabled={busy} onClick={() => setFile(undefined)} className="flex size-5 items-center justify-center rounded-full transition-[background-color,opacity] enabled:hover:bg-black/5 disabled:opacity-40">
                 <X className="size-3" />
               </button>
             </span>
