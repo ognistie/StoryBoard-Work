@@ -1,5 +1,5 @@
 import { norm } from './context'
-import type { Asset, Region, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
+import type { Asset, HairStyle, Outfit, Region, ShotType, SketchPerson, SketchSpec, TimeOfDay } from './types'
 
 /**
  * Pure functions that turn short natural-language deltas into SketchSpec changes.
@@ -43,6 +43,36 @@ function isChildAsset(a?: Asset) {
   return age ? Number(age[1]) < 13 : CHILD_RE.test(d)
 }
 
+/** Visual traits for the demo renderer, read from a character sheet (asset description). */
+export function lookFor(description = ''): Pick<SketchPerson, 'hair' | 'outfit' | 'beard'> {
+  const d = norm(description)
+  const hair: HairStyle | undefined = /cachead|cacho|crespo/.test(d)
+    ? 'curly'
+    : /\bbone\b|chapeu/.test(d)
+      ? 'cap'
+      : /coque/.test(d)
+        ? 'bun'
+        : /rabo de cavalo/.test(d)
+          ? 'ponytail'
+          : /cabelo (longo|comprido|liso)/.test(d)
+            ? 'long'
+            : /espetad/.test(d)
+              ? 'spiky'
+              : /cabelo curto|careca/.test(d)
+                ? 'short'
+                : undefined
+  const outfit: Outfit | undefined = /vestido/.test(d)
+    ? 'dress'
+    : /listrad|xadrez/.test(d)
+      ? 'striped'
+      : /casaco|jaqueta|blazer|terno|moletom/.test(d)
+        ? 'jacket'
+        : /camisa|polo/.test(d)
+          ? 'collar'
+          : undefined
+  return { hair, outfit, beard: /barba|bigode/.test(d) || undefined }
+}
+
 function charactersIn(text: string, characters: Asset[]): Asset[] {
   const n = ` ${norm(text)} `
   return characters.filter((c) => c.type === 'character' && new RegExp(`[\\s@]${norm(c.name).split(' ')[0]}[\\s,.!?]`).test(n))
@@ -76,11 +106,13 @@ export function applyInstruction(
     for (let i = 0; i < count; i++) {
       const asset = named[i]
       const person: SketchPerson = {
+        ...lookFor(asset?.description),
         x: placeX(spec, where, opts.region),
         name: asset?.name,
         kind: asset ? (isChildAsset(asset) ? 'child' : 'adult') : CHILD_RE.test(ins) ? 'child' : 'adult',
         pose: /acen/.test(ins) ? 'wave' : /sentad/.test(ins) ? 'sit' : /andando|caminhando/.test(ins) ? 'walk' : 'stand',
         facing: where === 'right' ? 'left' : 'right',
+        expression: expressionIn(ins),
       }
       spec.people.push(person)
     }
@@ -105,6 +137,8 @@ export function applyInstruction(
       if (/acen/.test(ins)) (target.pose = 'wave'), understood.push('acenando')
       else if (/sentad|sentar/.test(ins)) (target.pose = 'sit'), understood.push('sentado')
       else if (/andando|caminh/.test(ins)) (target.pose = 'walk'), understood.push('caminhando')
+      const ex = expressionIn(ins)
+      if (ex) (target.expression = ex), understood.push(`expressão: ${ex}`)
       if (/olhando para (a )?esquerda/.test(ins)) (target.facing = 'left'), understood.push('olhar à esquerda')
       if (/olhando para (a )?direita/.test(ins)) (target.facing = 'right'), understood.push('olhar à direita')
     }
@@ -155,6 +189,14 @@ export function applyInstruction(
   return { spec, understood }
 }
 
+function expressionIn(ins: string): SketchPerson['expression'] {
+  if (/surpres|assustad|espant|choque/.test(ins)) return 'surprised'
+  if (/(^|\s)rindo|gargalh|empolgad|feliz demais/.test(ins)) return 'laugh'
+  if (/serio|neutr|pensativ/.test(ins)) return 'neutral'
+  if (/sorri/.test(ins)) return 'smile'
+  return undefined
+}
+
 const SETTINGS: [RegExp, SketchSpec['setting']][] = [
   [/cozinha/, 'kitchen'],
   [/\bsala\b|sofa|living|interior/, 'living'],
@@ -172,7 +214,7 @@ export function specFromDescription(
   const t = norm(text)
   const setting = SETTINGS.find(([re]) => re.test(t))?.[1] ?? 'empty'
   const chars = charactersIn(text, opts.characters ?? [])
-  let people: SketchPerson[] = chars.map((c) => ({ x: 0, name: c.name, kind: isChildAsset(c) ? 'child' : 'adult', pose: 'stand', facing: 'right' }))
+  let people: SketchPerson[] = chars.map((c) => ({ ...lookFor(c.description), x: 0, name: c.name, kind: isChildAsset(c) ? 'child' : 'adult', pose: 'stand', facing: 'right' }))
   if (!people.length) {
     const n = /familia/.test(t) ? 3 : /casal|dois|duas/.test(t) ? 2 : PERSON_WORDS.test(t) ? 1 : 0
     people = Array.from({ length: n }, (_, i) => ({ x: 0, kind: i === 2 ? 'child' : 'adult', pose: 'stand', facing: 'right' }))

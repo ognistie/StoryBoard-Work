@@ -1,3 +1,4 @@
+import { CameraOverlay } from '../../components/CameraOverlay'
 import { Download, FileDown, Printer, Table } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -112,6 +113,7 @@ export function ExportMenu() {
               {ordered.map((f, i) => (
                 <div key={f.id} className="break-inside-avoid">
                   <FrameImage imageId={f.imageId} alt="" className="border border-neutral-300">
+                    <CameraOverlay movement={f.movement} />
                     <AnnotationLayer annotations={f.annotations} />
                   </FrameImage>
                   <div className="mt-1 text-[11px] font-semibold">

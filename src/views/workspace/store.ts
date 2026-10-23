@@ -21,6 +21,7 @@ interface WorkspaceUI {
   presenting: boolean
   shareOpen: boolean
   pinMode: boolean
+  showCamera: boolean
   aiPrefill?: string
   set: (patch: Partial<WorkspaceUI>) => void
   select: (id: string, mode: 'single' | 'toggle' | 'range', ordered?: string[]) => void
@@ -47,6 +48,7 @@ const initial = () => ({
   presenting: false,
   shareOpen: false,
   pinMode: false,
+  showCamera: true,
   aiPrefill: undefined,
 })
 

@@ -3,7 +3,7 @@ import { Check, Moon, Settings, Sun } from 'lucide-react'
 import { useState } from 'react'
 import { db } from '../lib/db'
 import { ROLE_LABEL, roleIn, useSession, USERS, userById } from '../lib/session'
-import { applyTheme, useSettings } from '../lib/settings'
+import { applyTheme, isRealAI, useSettings } from '../lib/settings'
 import { SettingsModal } from './SettingsModal'
 import { Avatar, Badge, cx, IconButton, Menu } from './ui'
 
@@ -24,11 +24,11 @@ export function Logo({ compact }: { compact?: boolean }) {
 
 export function ProviderBadge() {
   const s = useSettings()
-  const real = s.provider === 'gemini' && !!s.geminiKey
+  const real = isRealAI(s)
   return (
     <Badge tone={real ? 'ok' : 'warn'} className="hidden sm:inline-flex">
       <span className={cx('size-1.5 rounded-full', real ? 'bg-ok' : 'bg-warn')} />
-      {real ? 'IA: Gemini' : 'IA: modo demo'}
+      {real ? 'IA: OpenAI' : 'IA: modo demo'}
     </Badge>
   )
 }

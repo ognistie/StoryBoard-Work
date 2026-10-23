@@ -30,7 +30,7 @@ export function AIPanel() {
   const { project, ordered, assets, jobs, proposals, role, userId, scenes } = useWD()
   const ws = useWS()
   const settings = useSettings()
-  const provider = useMemo(() => getProvider(), [settings.provider, settings.geminiKey, settings.imageModel]) // eslint-disable-line react-hooks/exhaustive-deps
+  const provider = useMemo(() => getProvider(), [settings.provider, settings.openaiKey, settings.imageModel, settings.imageQuality, settings.stream]) // eslint-disable-line react-hooks/exhaustive-deps
   const selected = ordered.filter((f) => ws.selection.includes(f.id))
   const [instruction, setInstruction] = useState('')
   const [keep, setKeep] = useState(true)
@@ -106,7 +106,7 @@ export function AIPanel() {
         <Info className="mt-0.5 size-3.5 shrink-0" />
         {provider.isDemo ? (
           <span>
-            <b>Modo demonstração:</b> imagens desenhadas localmente, sem IA real. Configure o Gemini em Configurações para edições livres.
+            <b>Modo demonstração:</b> imagens desenhadas localmente, sem IA real. Configure a OpenAI em Configurações para edições livres.
           </span>
         ) : (
           <span>

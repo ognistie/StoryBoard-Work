@@ -1,3 +1,4 @@
+import { CameraOverlay } from '../../components/CameraOverlay'
 import { ChevronLeft, ChevronRight, Pause, Play, Subtitles, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -78,6 +79,7 @@ export function Presentation() {
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-6">
         <div key={frame.id} className="fade-in w-full max-w-[min(1400px,calc((100vh-170px)*16/9))]">
           <FrameImage imageId={frame.imageId} alt={frame.description} className="rounded-md">
+            {captions && <CameraOverlay movement={frame.movement} />}
             <AnnotationLayer annotations={frame.annotations} />
           </FrameImage>
           {captions && (

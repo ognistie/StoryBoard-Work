@@ -7,7 +7,7 @@ import type { AIProvider, ImageResult, PlannedFrame } from './types'
  * Development adapter. Clearly NOT an AI model: it renders procedural pencil
  * sketches locally and understands a small set of commands, so the complete
  * workflow (jobs, preview, compare, accept, versioning) can be demonstrated
- * offline. Configure Gemini in Settings for real image editing.
+ * offline. Configure OpenAI in Settings for real image editing.
  */
 
 const wait = (ms: number, signal: AbortSignal) =>
@@ -19,7 +19,7 @@ const wait = (ms: number, signal: AbortSignal) =>
     })
   })
 
-const DEMO_HELP = 'O modo demonstração entende pedidos simples (adicionar/remover pessoa ou personagem, noite/dia/pôr do sol, chuva, close/plano aberto, carro, árvore, cachorro, caixas). Configure o Gemini para edições livres.'
+const DEMO_HELP = 'O modo demonstração entende pedidos simples (adicionar/remover pessoa ou personagem, noite/dia/pôr do sol, chuva, close/plano aberto, carro, árvore, cachorro, caixas). Configure a OpenAI para edições livres.'
 
 export const demoProvider: AIProvider = {
   id: 'demo',
@@ -50,7 +50,7 @@ export const demoProvider: AIProvider = {
     overlayPerson(ctx, canvas.width, canvas.height, { x, kind: 'adult', pose: 'stand', facing: right ? 'left' : 'right', name: req.characters[0]?.name }, Date.now() % 9999)
     await wait(600, req.signal)
     const blob = await toBlob(canvas)
-    return { blob, width: canvas.width, height: canvas.height, note: 'Imagem importada: o modo demo só sobrepõe um esboço de pessoa. Use o Gemini para edição real.' }
+    return { blob, width: canvas.width, height: canvas.height, note: 'Imagem importada: o modo demo só sobrepõe um esboço de pessoa. Use a OpenAI para edição real.' }
   },
 
   async generateImage(req): Promise<ImageResult> {

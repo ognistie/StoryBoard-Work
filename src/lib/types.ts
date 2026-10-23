@@ -87,12 +87,19 @@ export interface SketchSpec {
   seed: number
 }
 
+export type HairStyle = 'short' | 'curly' | 'long' | 'ponytail' | 'cap' | 'bun' | 'spiky'
+export type Outfit = 'plain' | 'striped' | 'jacket' | 'collar' | 'dress'
+
 export interface SketchPerson {
   x: number // 0..1 horizontal position
   name?: string
   kind: 'adult' | 'child'
   pose: 'stand' | 'walk' | 'sit' | 'wave'
   facing: 'left' | 'right'
+  hair?: HairStyle
+  outfit?: Outfit
+  beard?: boolean
+  expression?: 'smile' | 'neutral' | 'surprised' | 'laugh'
 }
 
 /** Editable content of a frame. A revision stores an immutable copy of this. */

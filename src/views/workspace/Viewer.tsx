@@ -1,3 +1,4 @@
+import { CameraOverlay } from '../../components/CameraOverlay'
 import { ArrowUpRight, ChevronLeft, ChevronRight, MessageSquare, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -175,6 +176,7 @@ function AnnotatedImage({ frame, annotate, pins }: { frame: Frame; annotate: boo
       }}
     >
       <FrameImage imageId={frame.imageId} alt={frame.description || frame.title} />
+      <CameraOverlay movement={frame.movement} />
       <AnnotationLayer annotations={frame.annotations} draft={draft} />
       {pins.map((p, i) => (
         <span key={i} className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white shadow-md ring-2 ring-white" style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}>

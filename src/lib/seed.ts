@@ -210,7 +210,7 @@ const FRAMES: SeedFrame[] = [
       location: 'Sala de estar',
       lighting: 'Luz de janela, difusa',
     },
-    sketch: { setting: 'living', time: 'day', shot: 'aberto', people: [p(0.28, 'Léo', { pose: 'sit' }), p(0.66, 'Ana')], props: [], seed: 77 },
+    sketch: { setting: 'living', time: 'day', shot: 'aberto', people: [p(0.28, 'Léo', { pose: 'sit', expression: 'laugh' }), p(0.66, 'Ana', { expression: 'laugh' })], props: [], seed: 77 },
   },
   {
     scene: 3,
@@ -454,6 +454,7 @@ async function doSeed(force: boolean) {
   await seedSecondary(now)
   try {
     localStorage.setItem(SEED_FLAG, '1')
+    localStorage.setItem(RENDERER_KEY, RENDERER_VERSION)
   } catch {
     /* ignore */
   }
@@ -495,6 +496,51 @@ async function seedSecondary(now: number) {
     createdAt: now - 14 * DAY,
     updatedAt: now - 9 * DAY,
   })
+}
+
+const RENDERER_KEY = 'frameline.renderer'
+const RENDERER_VERSION = '2'
+
+/**
+ * One-time upgrade after the demo renderer changed style: re-draws images that
+ * were produced by the previous local renderer (960×540) from their stored
+ * SketchSpec. Ids, revisions and history stay the same; uploads and AI images
+ * from real providers are never touched.
+ */
+let upgrading: Promise<number> | null = null
+export function upgradeDemoImages(): Promise<number> {
+  upgrading ??= doUpgrade()
+  return upgrading
+}
+
+async function doUpgrade(): Promise<number> {
+  try {
+    if (localStorage.getItem(RENDERER_KEY) === RENDERER_VERSION) return 0
+  } catch {
+    return 0
+  }
+  const specs = new Map<string, SketchSpec>()
+  for (const f of await db.frames.toArray()) if (f.imageId && f.sketch) specs.set(f.imageId, f.sketch)
+  for (const r of await db.revisions.toArray()) if (r.snapshot.imageId && r.snapshot.sketch) specs.set(r.snapshot.imageId, r.snapshot.sketch)
+  for (const j of await db.jobs.toArray()) if (j.candidateImageId && j.candidateSketch) specs.set(j.candidateImageId, j.candidateSketch)
+  for (const pr of await db.proposals.toArray()) if (pr.candidateSketch) specs.set(pr.candidateImageId, pr.candidateSketch)
+  for (const a of await db.assets.toArray()) {
+    if (a.type === 'character' && a.imageId) specs.set(a.imageId, { setting: 'empty', time: 'day', shot: 'americano', people: [p(0.5, a.name, a.name === 'Léo' ? { kind: 'child' } : {})], props: [], seed: a.name.length * 13 })
+  }
+  let n = 0
+  for (const [imageId, spec] of specs) {
+    const old = await db.images.get(imageId)
+    if (!old || old.width !== 960 || old.height !== 540) continue
+    const { blob, width, height } = await sketchToBlob(spec)
+    await db.images.update(imageId, { blob, width, height })
+    n++
+  }
+  try {
+    localStorage.setItem(RENDERER_KEY, RENDERER_VERSION)
+  } catch {
+    /* ignore */
+  }
+  return n
 }
 
 export async function resetDemo() {

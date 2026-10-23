@@ -1,6 +1,6 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { CheckCircle2, Keyboard, LayoutGrid, PanelLeft, PanelRight, Plus, Rows3, Sparkles, X } from 'lucide-react'
+import { CheckCircle2, Keyboard, LayoutGrid, PanelLeft, PanelRight, Plus, Rows3, Sparkles, Video, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button, cx, IconButton, Kbd, Modal, Segmented, toast, toastError } from '../../components/ui'
 import { useHotkeys } from '../../lib/hooks'
@@ -146,6 +146,9 @@ export function Canvas() {
             className="hidden w-24 accent-[var(--accent)] md:block"
           />
         )}
+        <IconButton label={ws.showCamera ? 'Ocultar indicações de câmera' : 'Mostrar indicações de câmera'} active={ws.showCamera} onClick={() => ws.set({ showCamera: !ws.showCamera })}>
+          <Video className="size-4" />
+        </IconButton>
         <IconButton label="Atalhos de teclado (?)" onClick={() => setHelp(true)} className="hidden md:inline-flex">
           <Keyboard className="size-4" />
         </IconButton>
@@ -186,9 +189,10 @@ export function Canvas() {
                       {scene.sequence && <span className="ml-auto hidden text-[12px] text-muted md:block">{scene.sequence}</span>}
                     </div>
                     <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${ws.zoom}px, 1fr))` }}>
-                      {frames.map((f) => (
+                      {frames.map((f, i) => (
                         <FrameCard
                           key={f.id}
+                          shotCode={`C${scene.number} / ${String((i + 1) * 10).padStart(4, '0')}`}
                           frame={f}
                           number={frameNumber(ordered, f.id)}
                           selected={ws.selection.includes(f.id)}
@@ -220,6 +224,7 @@ export function Canvas() {
                       <div className="h-4 font-mono text-[11px] text-muted">{sceneStart && scene ? `CENA ${scene.number} · ${scene.heading}` : ''}</div>
                       <FrameCard
                         strip
+                        shotCode={scene ? `C${scene.number} / ${String((visible.filter((x) => x.sceneId === f.sceneId).indexOf(f) + 1) * 10).padStart(4, '0')}` : undefined}
                         frame={f}
                         number={frameNumber(ordered, f.id)}
                         selected={ws.selection.includes(f.id)}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildEditPrompt, chunkText, detectConflicts, mentionedCharacters, parseScript, retrieve } from '../lib/context'
 import { diffWords } from '../lib/diff'
 import { emptyContent } from '../lib/repo'
-import { applyInstruction, specFromDescription } from '../lib/sketchOps'
+import { applyInstruction, lookFor, specFromDescription } from '../lib/sketchOps'
 import type { Asset, ContextDoc, Frame, Project, Scene, SketchSpec } from '../lib/types'
 
 const SCRIPT = `1. EXT. CASA NOVA — DIA
@@ -131,6 +131,16 @@ describe('demo sketch operations', () => {
   })
   it('does not pretend to understand unknown requests', () => {
     expect(applyInstruction(base, 'Trocar a textura do céu por mármore').understood).toEqual([])
+  })
+  it('reads wardrobe and hair from the character sheet so looks stay consistent', () => {
+    expect(lookFor('Mulher, 35 anos, cabelo cacheado, casaco amarelo')).toEqual({ hair: 'curly', outfit: 'jacket', beard: undefined })
+    expect(lookFor('Homem, barba curta, camisa xadrez')).toMatchObject({ outfit: 'striped', beard: true })
+    const { spec } = applyInstruction(base, 'Adicionar Léo sorrindo', { characters: [asset('Léo', 'Menino, 8 anos, boné vermelho')] })
+    expect(spec.people.at(-1)).toMatchObject({ hair: 'cap', expression: 'smile' })
+  })
+  it('changes the expression of an existing character', () => {
+    const { spec } = applyInstruction(base, 'Ana surpresa', { characters: [asset('Ana')] })
+    expect(spec.people[0].expression).toBe('surprised')
   })
   it('builds a spec from a description', () => {
     const spec = specFromDescription('Família na sala, sentada no sofá à noite')

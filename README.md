@@ -9,7 +9,7 @@ O diferencial é a **edição conversacional e incremental**: o usuário selecio
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 25 testes (Vitest)
+npm test           # 27 testes (Vitest)
 npm run build      # build de produção em dist/
 ```
 
@@ -30,12 +30,26 @@ O app abre com um projeto de demonstração (“Casa Nova — Filme 30””): 9
 
 | Provedor | O que faz | Como ativar |
 |---|---|---|
-| **Demonstração local** (padrão) | **Não é IA.** Desenha esboços a lápis paramétricos e entende pedidos simples: adicionar ou remover pessoa ou personagem, noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
-| **Google Gemini** | Edição multimodal real: o quadro atual vai como imagem de entrada junto com o prompt estruturado e as referências dos personagens. Também reescreve a descrição, descreve imagens importadas e faz a decupagem do roteiro em quadros (JSON estruturado). | Configurações → Google Gemini → colar a chave do [AI Studio](https://aistudio.google.com/apikey) → Testar. Também dá para usar `VITE_GEMINI_API_KEY` num arquivo `.env.local`. |
+| **Demonstração local** (padrão) | **Não é IA.** Desenha quadros no estilo de storyboard (tinta e lápis) e entende pedidos simples: adicionar ou remover pessoa ou personagem, expressão (sorrindo, surpreso…), noite/dia/pôr do sol, chuva, close/plano aberto e objetos. Serve para demonstrar o fluxo completo offline. A interface identifica esse modo em todos os lugares. | Já vem ativo |
+| **OpenAI (ChatGPT)** | Edição real com **GPT Image**: o quadro atual vai como imagem de entrada, com `input_fidelity: high` para preservar o que não foi pedido, junto com o prompt estruturado e as imagens de referência dos personagens. A área marcada vira **máscara de verdade** (só ela é repintada). Com streaming, as **prévias parciais** aparecem enquanto a imagem é gerada. O modelo de texto reescreve a descrição, descreve imagens importadas e faz a decupagem do roteiro em quadros (JSON com schema estrito). | Configurações → OpenAI (ChatGPT) → colar a chave de [platform.openai.com/api-keys](https://platform.openai.com/api-keys) → Testar. Também dá para usar `VITE_OPENAI_API_KEY` num arquivo `.env.local`. |
 
-Modelos padrão: `gemini-2.5-flash-image` (imagem) e `gemini-2.5-flash` (texto). Os dois podem ser trocados nas configurações.
+Modelos padrão: `gpt-image-1` (imagem) e `gpt-4.1-mini` (texto). Os dois podem ser trocados nas configurações, assim como a qualidade (rápida/média/alta) e as prévias progressivas.
 
-A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada provedor (`editImage`, `generateImage`, `maskedRegion: native | guided | none`, `progressivePreview`). Como o Gemini não aceita máscara, a edição regional é **guiada**: o app envia uma cópia do quadro com a área contornada e as coordenadas em texto, e avisa isso na tela.
+Observações:
+
+- Os modelos GPT Image podem exigir **organização verificada** na OpenAI. Se for o caso, o erro aparece no quadro com a orientação, e a imagem original continua intacta.
+- Em projetos 16:9 a OpenAI gera em 1536×1024 (3:2). O card enquadra a imagem em 16:9, cortando um pouco das bordas de cima e de baixo.
+- Se a conta não aceitar streaming, o app refaz o pedido automaticamente sem streaming.
+
+A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada provedor (`editImage`, `generateImage`, `maskedRegion: native | guided | none`, `progressivePreview`). Assim, dá para acrescentar outro provedor sem mexer no restante do app.
+
+## Linguagem visual dos quadros
+
+- **Cards de storyboard**: número do quadro em círculo, código profissional do plano (`C1 / 0010`, `C1 / 0020`…), painel com borda de tinta, legenda centralizada (fala ou ação) e rodapé com status, enquadramento, movimento e duração.
+- **Indicações de câmera em vermelho** sobre o quadro (PAN, TILT, DOLLY IN, ZOOM, TRACKING, TRUCK, GRUA, câmera na mão), geradas a partir do campo “Movimento”. São uma camada separada da imagem e aparecem também no modo ampliado, na apresentação e no PDF. O botão de câmera na barra liga e desliga.
+- **Renderizador do modo demo** (`src/lib/sketch.ts`): personagens em tinta escura com rosto, cabelo, figurino e expressão; cenários em lápis mais claro, para separar figura e fundo; enquadramentos coerentes (o médio corta na cintura, o americano no joelho, o close no rosto). Os traços de cada personagem vêm da ficha em Assets (“cabelo cacheado”, “boné”, “camisa xadrez”…), o que mantém a continuidade entre quadros.
+- Em desenvolvimento, `#/lab` mostra uma galeria do renderizador com todos os enquadramentos.
+- Quem já tinha dados do estilo antigo no navegador recebe as imagens de demonstração redesenhadas automaticamente na primeira abertura. Ids, versões e histórico não mudam.
 
 ## Arquitetura e decisões
 
@@ -63,7 +77,7 @@ A interface `AIProvider` (`src/lib/ai/types.ts`) declara as capacidades de cada 
 
 ```
 src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), context (roteiro/RAG/conflitos),
-                 jobs (fila IA), ai/ (gemini, demo), sketch* (renderizador local), session, presence, seed
+                 jobs (fila IA), ai/ (openai, demo), sketch* (renderizador local), session, presence, seed
 src/views/       Dashboard, NewProjectModal, JoinView, Workspace
 src/views/workspace/  Canvas, FrameCard, Sidebar, RightPanel (IA, Detalhes, Comentários, Contexto, Histórico),
                  AIPanel, DiffModal, Viewer (anotações), Presentation (animatic), Share, Export, Script, Context,
@@ -74,7 +88,7 @@ src/test/        testes de contexto/regras/edição demo e de repo (revisões, a
 ## Limitações conhecidas
 
 - **Sem servidor**: autenticação, permissões e “tempo real” valem dentro de **um navegador**, entre abas. Links de convite só funcionam nesse mesmo navegador. As identidades são de demonstração e escolhidas no avatar. Para produção, o caminho é trocar o `db`/`presence` por um backend com auth (por exemplo Supabase: Postgres + RLS, Realtime, Storage com URLs assinadas e pgvector para a busca de contexto), mantendo `repo.ts` como contrato.
-- **Chave do Gemini no navegador**: aceitável para a demo, já que fica salva só localmente. Em produção, as chamadas devem passar por um backend.
+- **Chave da OpenAI no navegador**: aceitável para a demo, já que fica salva só localmente. Em produção, as chamadas devem passar por um backend (proxy), para a chave nunca chegar ao cliente.
 - **Modo demo**: entende um vocabulário limitado e avisa quando não entende o pedido. Não imita uma IA real.
 - **Busca de contexto** é lexical (BM25), sem embeddings.
 - **Fora do escopo do MVP**: menções com notificação por e-mail, comentários em regiões retangulares (hoje são pontos) e desfazer/refazer granular para metadados (a restauração formal já existe).
