@@ -59,13 +59,14 @@ export function sketchSize(aspect?: Project['aspect']): { width: number; height:
   }
 }
 
-const INK = '#1b1a18'
-const PENCIL = '#66625b'
-const LIGHT = '#9b978e'
-const PAPER = '#ffffff'
-const SHIRT = '#f3f1eb'
-const PANTS = '#c8c4b9'
-const HAIR = '#36342f'
+// Neutral greys sampled from the iugu boards (design/storyboard/iugu). No warm or cream tints.
+const INK = '#262626'
+const PENCIL = '#6b6b6b'
+const LIGHT = '#a3a3a3'
+const PAPER = '#f8f8f8'
+const SHIRT = '#f4f4f4'
+const PANTS = '#d4d4d4'
+const HAIR = '#e3e3e3'
 
 type Ctx = CanvasRenderingContext2D
 type Pt = [number, number]
@@ -772,7 +773,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
   const top = ground - H + (sit ? 22 * u : 0)
   const Y = (v: number) => top + v * u
   const X = (v: number) => x + v * u
-  const lw = Math.max(1.6, Math.min(4.2, u * 0.55)) / p.s
+  const lw = Math.max(1.3, Math.min(3, u * 0.42)) / p.s
   const ink = { color: INK, w: lw }
   const thin = { color: INK, w: lw * 0.55, passes: 1 }
   const detailed = u > 1.6
@@ -780,7 +781,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
   // contact shadow
   if (headTarget === undefined) {
     p.ctx.save()
-    p.ctx.fillStyle = 'rgba(27,26,24,0.10)'
+    p.ctx.fillStyle = SHADOW
     p.ctx.beginPath()
     p.ctx.ellipse(x + (sit ? d * 10 * u : 0), ground, 16 * u, 2.6 * u, 0, 0, Math.PI * 2)
     p.ctx.fill()
@@ -814,7 +815,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
   for (const leg of legs) {
     p.path(tube(leg, legW * u, legW * 0.78 * u), true, { ...ink, fill: look.outfit === 'dress' ? PAPER : PANTS })
     const foot = leg[leg.length - 1]
-    p.ellipse(foot[0] + d * 3 * u, foot[1] + 1.2 * u, 5.4 * u, 2.6 * u, { ...ink, fill: '#4a4843' })
+    p.ellipse(foot[0] + d * 3 * u, foot[1] + 1.2 * u, 5.4 * u, 2.6 * u, { ...ink, fill: '#5c5c5c' })
   }
   if (detailed && !sit) p.line(X(0), Y(hipY + 1), X(0), Y(hipY + 9), thin)
 
@@ -834,7 +835,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
   if (look.outfit === 'dress') {
     p.path([[X(-hipW), Y(hipY - 2)], [X(-hipW - 7), Y(kneeY)], [X(hipW + 7), Y(kneeY)], [X(hipW), Y(hipY - 2)]], true, { ...ink, fill: SHIRT })
   }
-  p.path(torso, true, { ...ink, fill: look.outfit === 'jacket' ? '#d8d5cc' : SHIRT })
+  p.path(torso, true, { ...ink, fill: look.outfit === 'jacket' ? GREY_2 : SHIRT })
   const c = p.ctx
   if (look.outfit === 'striped' && detailed) {
     c.save()
@@ -842,7 +843,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
     torso.forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)))
     c.closePath()
     c.clip()
-    c.fillStyle = '#2a2925'
+    c.fillStyle = LIGHT
     for (let yy = shY + 3; yy < hipY + 1; yy += 6) c.fillRect(X(-shW - 2), Y(yy), (shW + 2) * 2 * u, 2.6 * u)
     c.restore()
   } else if (look.outfit === 'jacket' && detailed) {
@@ -862,7 +863,7 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
 
   // ----- arms
   const armW = (kid ? 4.4 : 4.8) * u
-  const sleeve = look.outfit === 'jacket' ? '#d8d5cc' : SHIRT
+  const sleeve = look.outfit === 'jacket' ? GREY_2 : SHIRT
   const arm = (side: number, pts: Pt[], open = false) => {
     p.path(tube(pts, armW, armW * 0.85), true, { ...ink, fill: sleeve })
     const hand = pts[pts.length - 1]
@@ -883,8 +884,8 @@ function drawPerson(p: Pen, person: SketchPerson, w: number, h: number, horizon:
   const ry = head.ry * u
   // hair behind the head
   if (look.hair === 'long') {
-    p.path([[hx - rx * 1.0, hy - ry * 0.5], [hx - rx * 1.2, hy + ry * 0.6], [hx - rx * 1.05, hy + ry * 1.55], [hx - rx * 0.55, hy + ry * 1.35], [hx + rx * 0.55, hy + ry * 1.35], [hx + rx * 1.05, hy + ry * 1.55], [hx + rx * 1.2, hy + ry * 0.6], [hx + rx * 1.0, hy - ry * 0.5]], true, { ...ink, fill: '#57544d' })
-    if (u > 1.6) for (const k of [-1.05, -0.95, 0.95, 1.05]) p.line(hx + rx * k, hy + ry * 0.3, hx + rx * k * 1.02, hy + ry * 1.3, { color: '#d9d6cf', w: 0.8, passes: 1 })
+    p.path([[hx - rx * 1.0, hy - ry * 0.5], [hx - rx * 1.2, hy + ry * 0.6], [hx - rx * 1.05, hy + ry * 1.55], [hx - rx * 0.55, hy + ry * 1.35], [hx + rx * 0.55, hy + ry * 1.35], [hx + rx * 1.05, hy + ry * 1.55], [hx + rx * 1.2, hy + ry * 0.6], [hx + rx * 1.0, hy - ry * 0.5]], true, { ...ink, fill: HAIR })
+    if (u > 1.6) for (const k of [-1.05, -0.95, 0.95, 1.05]) p.line(hx + rx * k, hy + ry * 0.3, hx + rx * k * 1.02, hy + ry * 1.3, { color: LIGHT, w: 0.8, passes: 1 })
   }
   if (look.hair === 'ponytail') p.ellipse(hx - d * rx * 1.15, hy + ry * 0.2, rx * 0.45, ry * 0.8, { ...ink, fill: HAIR })
   if (look.hair === 'bun') p.ellipse(hx, hy - ry * 1.1, rx * 0.42, ry * 0.36, { ...ink, fill: HAIR })
@@ -937,14 +938,14 @@ function drawHair(p: Pen, hair: HairStyle, hx: number, hy: number, rx: number, r
         const t = Math.PI * (1.02 + (i / 11) * 0.96)
         const cx = hx + Math.cos(t) * rx * 1.02
         const cy = hy + Math.sin(t) * ry * 1.0
-        p.ellipse(cx, cy, rx * 0.27, ry * 0.24, { ...ink, fill: '#f7f6f2', w: (ink.w ?? 2) * 0.8 })
+        p.ellipse(cx, cy, rx * 0.27, ry * 0.24, { ...ink, fill: PAPER, w: (ink.w ?? 2) * 0.8 })
       }
       p.ellipse(hx - rx * 0.2, hy - ry * 0.6, rx * 0.25, ry * 0.22, { ...ink, w: (ink.w ?? 2) * 0.7 })
       break
     }
     case 'cap':
-      p.path([[hx - rx * 1.03, hy - ry * 0.2], [hx - rx * 0.85, hy - ry * 0.9], [hx, hy - ry * 1.15], [hx + rx * 0.85, hy - ry * 0.9], [hx + rx * 1.03, hy - ry * 0.2]], true, { ...ink, fill: '#8c8981' })
-      p.path([[hx + d * rx * 0.2, hy - ry * 0.25], [hx + d * rx * 1.7, hy - ry * 0.12], [hx + d * rx * 1.5, hy - ry * 0.32], [hx + d * rx * 0.6, hy - ry * 0.4]], true, { ...ink, fill: '#6e6b64' })
+      p.path([[hx - rx * 1.03, hy - ry * 0.2], [hx - rx * 0.85, hy - ry * 0.9], [hx, hy - ry * 1.15], [hx + rx * 0.85, hy - ry * 0.9], [hx + rx * 1.03, hy - ry * 0.2]], true, { ...ink, fill: GREY_2 })
+      p.path([[hx + d * rx * 0.2, hy - ry * 0.25], [hx + d * rx * 1.7, hy - ry * 0.12], [hx + d * rx * 1.5, hy - ry * 0.32], [hx + d * rx * 0.6, hy - ry * 0.4]], true, { ...ink, fill: LIGHT })
       p.ellipse(hx, hy - ry * 1.15, rx * 0.12, ry * 0.08, { ...ink, fill: INK })
       break
     case 'spiky': {
@@ -983,20 +984,24 @@ function drawFace(p: Pen, expression: string, fx: number, hy: number, rx: number
   // mouth
   const my = hy + ry * 0.58
   const mw = rx * 0.34
-  if (expression === 'surprised') p.ellipse(fx, my, rx * 0.12, ry * 0.12, { color: INK, w: lw * 0.8, fill: '#3a3833', passes: 1 })
-  else if (expression === 'laugh') p.path([[fx - mw, my - ry * 0.05], [fx + mw, my - ry * 0.05], [fx + mw * 0.6, my + ry * 0.16], [fx - mw * 0.6, my + ry * 0.16]], true, { color: INK, w: lw * 0.8, fill: '#3a3833', passes: 1 })
+  if (expression === 'surprised') p.ellipse(fx, my, rx * 0.12, ry * 0.12, { color: INK, w: lw * 0.8, fill: '#3a3a3a', passes: 1 })
+  else if (expression === 'laugh') p.path([[fx - mw, my - ry * 0.05], [fx + mw, my - ry * 0.05], [fx + mw * 0.6, my + ry * 0.16], [fx - mw * 0.6, my + ry * 0.16]], true, { color: INK, w: lw * 0.8, fill: '#3a3a3a', passes: 1 })
   else if (expression === 'neutral') p.line(fx - mw * 0.6, my, fx + mw * 0.6, my, { color: INK, w: lw * 0.8, passes: 1 })
   else p.ellipse(fx, my - ry * 0.12, mw, ry * 0.16, { color: INK, w: lw * 0.8, passes: 1 }, 0.25, Math.PI - 0.25)
 }
 
 // ---------------------------------------------------------------- storyboard composer
-// Draws a scene from its subjects in the style of the demo boards: fine black line,
-// light grey tones, blue only on key objects, red only on the camera arrow.
+// Draws a scene from its subjects in the style of the iugu boards (design/storyboard/iugu):
+// fine black line, light grey tones, lots of white paper, soft shadows,
+// blue only on key objects, red only on the camera arrow.
 
-const GREY = '#f0efec'
-const GREY_2 = '#dddbd6'
-const BLUE = '#5274ff'
-const RED = '#d7402f'
+const GREY = '#ececec'
+const GREY_2 = '#d6d6d6'
+const BLUE = '#86a2f7'
+const RED = '#c84848'
+const SHADOW = 'rgba(0,0,0,0.07)'
+/** The light blue wash the iugu boards put on the floor under people. */
+const FLOOR_WASH = 'rgba(134,162,247,0.22)'
 
 type Box = { x: number; y: number; w: number; h: number }
 type Framing = 'tight' | 'mid' | 'wide' | 'flat'
@@ -1018,9 +1023,9 @@ const FRAMING: Partial<Record<ShotType, Framing>> = {
 
 /** Objects that sit on a table; the others hang on a wall or float. */
 const ON_TABLE: ObjectSubject[] = ['phone', 'laptop', 'cup', 'grinder', 'paper', 'formula', 'product']
-const LINE = { color: INK, w: 2.2 }
-const THIN = { color: INK, w: 1.3, passes: 1 }
-const SOFT = { color: LIGHT, w: 1.2, passes: 1 }
+const LINE = { color: INK, w: 1.7 }
+const THIN = { color: INK, w: 1, passes: 1 }
+const SOFT = { color: LIGHT, w: 1, passes: 1 }
 
 function isObject(s: SketchSubject): s is ObjectSubject {
   return s !== 'hands' && s !== 'desk' && s !== 'window' && s !== 'shop' && s !== 'street'
@@ -1052,13 +1057,24 @@ function roundRect(x: number, y: number, w: number, h: number, r: number): Pt[] 
 function arrowHead(p: Pen, x: number, y: number, angle: number, size: number, color = RED) {
   const a1 = angle + Math.PI * 0.82
   const a2 = angle - Math.PI * 0.82
-  p.path([[x + Math.cos(a1) * size, y + Math.sin(a1) * size], [x, y], [x + Math.cos(a2) * size, y + Math.sin(a2) * size]], false, { color, w: 3, passes: 1, sharp: true })
+  p.path([[x + Math.cos(a1) * size, y + Math.sin(a1) * size], [x, y], [x + Math.cos(a2) * size, y + Math.sin(a2) * size]], false, { color, w: 2.2, passes: 1, sharp: true })
 }
 
 function arrow(p: Pen, pts: Pt[], color = RED) {
-  p.path(pts, false, { color, w: 3, passes: 1, jitter: 0.6 })
+  p.path(pts, false, { color, w: 2.2, passes: 1, jitter: 0.6 })
   const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]]
-  arrowHead(p, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), 16 * p.s, color)
+  arrowHead(p, b[0], b[1], Math.atan2(b[1] - a[1], b[0] - a[0]), 13 * p.s, color)
+}
+
+/** Soft flat shadow on the ground, as under every object in the iugu boards. */
+function groundShadow(p: Pen, cx: number, cy: number, rx: number, ry: number, color = SHADOW) {
+  const c = p.ctx
+  c.save()
+  c.fillStyle = color
+  c.beginPath()
+  c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  c.fill()
+  c.restore()
 }
 
 // ----- objects. Each fills its box and returns where a hand would touch it.
@@ -1198,10 +1214,14 @@ function drawBlocks(p: Pen, b: Box): Pt {
   const cw = (b.w - gap * (cols - 1)) / cols
   const ch = (b.h * 0.72 - gap * (rows - 1)) / rows
   const top = b.y + b.h * 0.28
+  const radius = Math.min(cw, ch) * 0.22
+  // each block casts a flat offset shadow first, like the blocks in the iugu boards
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) p.path(roundRect(b.x + c * (cw + gap) + cw * 0.07, top + r * (ch + gap) + ch * 0.09, cw, ch, radius), true, { fill: SHADOW, passes: 0, sharp: true })
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++) {
       const blue = (r + c) % 3 === 1
-      p.path(roundRect(b.x + c * (cw + gap), top + r * (ch + gap), cw, ch, Math.min(cw, ch) * 0.22), true, { ...LINE, fill: blue ? BLUE : GREY, sharp: true })
+      p.path(roundRect(b.x + c * (cw + gap), top + r * (ch + gap), cw, ch, radius), true, { ...LINE, fill: blue ? BLUE : GREY, sharp: true })
     }
   // two loose pills about to click in
   p.path(roundRect(b.x + b.w * 0.08, b.y, b.w * 0.34, b.h * 0.12, b.h * 0.06), true, { ...THIN, fill: GREY, sharp: true })
@@ -1241,13 +1261,14 @@ function drawObject(p: Pen, subject: ObjectSubject, area: Box, bottom?: number):
   const b = fit(area, OBJECT_RATIO[subject])
   // objects on a table rest on its edge instead of floating in the middle of their area
   if (bottom !== undefined) b.y = bottom - b.h
+  if (subject !== 'blocks') groundShadow(p, b.x + b.w * 0.54, b.y + b.h * 1.01, b.w * 0.5, Math.max(b.h * 0.05, 4 * p.s))
   return DRAW_OBJECT[subject](p, b)
 }
 
 // ----- environment
 
 function drawWindow(p: Pen, b: Box, night: boolean) {
-  p.rect(b.x, b.y, b.w, b.h, { ...LINE, fill: night ? '#e4e3df' : PAPER })
+  p.rect(b.x, b.y, b.w, b.h, { ...LINE, fill: night ? GREY_2 : PAPER })
   p.line(b.x + b.w / 2, b.y, b.x + b.w / 2, b.y + b.h, THIN)
   p.line(b.x, b.y + b.h * 0.5, b.x + b.w, b.y + b.h * 0.5, THIN)
   if (night) {
@@ -1281,12 +1302,18 @@ function drawStreet(p: Pen, w: number, floorY: number, h: number) {
   }
 }
 
+/**
+ * A table edge with a short grey band under it. Below the band it stays white paper,
+ * as in the iugu boards, but still hides whatever stands behind the table.
+ */
 function drawTable(p: Pen, w: number, top: number, h: number, x0 = 0, x1 = w) {
   p.ctx.save()
-  p.ctx.fillStyle = GREY
+  p.ctx.fillStyle = PAPER
   p.ctx.fillRect(x0, top, x1 - x0, h - top)
+  p.ctx.fillStyle = GREY
+  p.ctx.fillRect(x0, top, x1 - x0, Math.min(h - top, h * 0.035))
   p.ctx.restore()
-  p.line(x0, top, x1, top, { color: PENCIL, w: 1.8 })
+  p.line(x0, top, x1, top, { color: PENCIL, w: 1.5 })
 }
 
 /** Reaching hand, from an edge of the frame to a point. */
@@ -1389,6 +1416,7 @@ function composeWide(p: Pen, spec: StoryboardSpec, w: number, h: number, objects
   const people = spec.people.length ? spec.people : [{ x: 0.5, kind: 'adult' as const, pose: 'stand' as const, facing: 'right' as const }]
   // drawPerson takes its figure height as a share of the frame height
   const scale = WIDE_FIGURE[spec.shot] ?? 0.46
+  groundShadow(p, w * 0.5, floorY, w * (0.16 + 0.1 * Math.min(people.length, 3)), h * 0.03, FLOOR_WASH)
   for (const person of [...people].sort((a, b) => Math.abs(b.x - 0.5) - Math.abs(a.x - 0.5))) drawPerson(p, person, w, h, floorY - h * 0.2, scale, 'aberto')
   // the table stands in front of the people, so they read as standing behind it
   const table = objects.filter((o) => ON_TABLE.includes(o))
@@ -1487,10 +1515,7 @@ function composeStoryboard(ctx: Ctx, spec: StoryboardSpec, w: number, h: number)
   else if (framing === 'mid') composeMid(p, spec, w, h, objects, night)
   else if (framing === 'wide') composeWide(p, spec, w, h, objects, night)
   else if (!composeFlat(p, w, h, objects)) composeTight(p, spec, w, h, objects, night)
-  if (night) {
-    ctx.fillStyle = 'rgba(22,26,40,0.06)'
-    ctx.fillRect(0, 0, w, h)
-  }
+  // night shows only in the window: the paper stays white, as in the iugu boards
   drawCameraMove(p, spec.movement, w, h)
   ctx.restore()
 }
