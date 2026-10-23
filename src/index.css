@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/* ---------- Design tokens ---------- */
+:root {
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --surface-2: #f1f1ee;
+  --surface-3: #e8e8e4;
+  --fg: #16171a;
+  --fg-2: #3d3f45;
+  --muted: #74767d;
+  --line: #e4e4df;
+  --line-strong: #d2d2cc;
+  --accent: #4b5cf0;
+  --accent-fg: #ffffff;
+  --accent-soft: #eceefe;
+  --ok: #138a5c;
+  --ok-soft: #e3f4ec;
+  --warn: #b26b00;
+  --warn-soft: #fbf0dc;
+  --danger: #d0384b;
+  --danger-soft: #fbe7ea;
+  --info: #2f6fd6;
+  --info-soft: #e5eefb;
+  --paper: #fbfaf6;
+  --shadow-sm: 0 1px 2px rgb(16 17 20 / 0.06);
+  --shadow-md: 0 1px 2px rgb(16 17 20 / 0.05), 0 8px 24px -8px rgb(16 17 20 / 0.12);
+  --shadow-lg: 0 2px 6px rgb(16 17 20 / 0.06), 0 24px 64px -16px rgb(16 17 20 / 0.24);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e0f11;
+  --surface: #16171a;
+  --surface-2: #1d1e22;
+  --surface-3: #26272c;
+  --fg: #ededee;
+  --fg-2: #c4c5ca;
+  --muted: #8b8d95;
+  --line: #26272c;
+  --line-strong: #34363c;
+  --accent: #7584ff;
+  --accent-fg: #0d0e12;
+  --accent-soft: #1f2340;
+  --ok: #3ccf8e;
+  --ok-soft: #12291f;
+  --warn: #f0a93a;
+  --warn-soft: #2e2412;
+  --danger: #ff6b7d;
+  --danger-soft: #331a1f;
+  --info: #6aa5ff;
+  --info-soft: #172338;
+  --paper: #f3f1ea;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -8px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 24px 64px -16px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-paper: var(--paper);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.45) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.pop-in {
+  animation: pop-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fade-in 140ms ease-out;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.slide-up {
+  animation: slide-up 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---------- Print / export ---------- */
+.print-only { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 12mm; }
+  body { background: #fff; color: #000; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  #root { display: none !important; }
+  html, body { height: auto !important; overflow: visible !important; }
+}
