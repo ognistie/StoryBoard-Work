@@ -1,18 +1,29 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { FolderClosed, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { cx, toast } from '../components/ui'
+import { AccountButton } from '../components/AccountButton'
+import { askSignIn } from '../components/AuthModal'
+import { SettingsModal } from '../components/SettingsModal'
+import { Avatar, cx } from '../components/ui'
+import { useAuth } from '../lib/collab/auth'
+import { useSync, watchProject } from '../lib/collab/sync'
 import { db } from '../lib/db'
 import { roleIn, useSession, userById } from '../lib/session'
 import { orderedFrames, useWD, WorkspaceCtx, type WorkspaceData } from './workspace/context'
 import { ExportMenu } from './workspace/ExportMenu'
 import { BottomSheet } from './workspace/BottomSheet'
+import { ChatPanel, useUnread } from './workspace/ChatPanel'
+import { ExampleTips } from './workspace/ExampleTips'
+import { FilesPanel } from './workspace/FilesPanel'
+import { PanelFrame } from './workspace/PanelShell'
+import { ShareButton, ShareModal } from './workspace/ShareModal'
 import { Inspector, InspectorSheetContent } from './workspace/Inspector'
 import { PlayIcon } from './workspace/presentation/icons'
 import { Presentation } from './workspace/presentation/Presentation'
 import { PromptBox } from './workspace/PromptBox'
 import { SceneCanvas, ZoomControl } from './workspace/SceneCanvas'
-import { useWS } from './workspace/store'
+import { useWS, type SidePanel } from './workspace/store'
 import { useAddNote } from './workspace/useAddNote'
 import { useScreen } from './workspace/useScreen'
 
@@ -31,15 +42,6 @@ function useWorkspaceData(projectId: string) {
   }, [projectId])
 }
 
-function initials(name: string) {
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-}
-
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="flex h-full items-center justify-center bg-[#F4F4F5] text-[14px] text-muted">{children}</div>
 }
@@ -47,7 +49,12 @@ function Centered({ children }: { children: React.ReactNode }) {
 /** A project: the scene canvas in a panel, the selected scene's inspector, and the prompt box. */
 export function Workspace({ projectId }: { projectId: string }) {
   const userId = useSession((s) => s.userId)
+  const signedIn = useAuth((s) => !!s.user)
   const data = useWorkspaceData(projectId)
+  const remote = !!data?.project?.remote
+
+  // A shared project syncs with the server while it is open.
+  useEffect(() => (remote && signedIn ? watchProject(projectId) : undefined), [projectId, remote, signedIn])
 
   if (!data) return <Centered>Carregando projeto…</Centered>
   if (!data.project)
@@ -65,11 +72,18 @@ export function Workspace({ projectId }: { projectId: string }) {
   if (!role)
     return (
       <Centered>
-        <span>
-          {userById(userId).name} não participa de “{data.project.name}”.{' '}
+        <span className="max-w-sm text-center">
+          {signedIn ? `Sua conta não participa de “${data.project.name}”. ` : 'Este projeto é compartilhado. '}
+          {!signedIn && (
+            <button onClick={() => askSignIn('Entre com a conta que recebeu o convite.')} className="text-link hover:underline">
+              Entrar
+            </button>
+          )}
+          {!signedIn && ' ou '}
           <a href="#/" className="text-link hover:underline">
-            Voltar aos projetos
+            voltar aos projetos
           </a>
+          .
         </span>
       </Centered>
     )
@@ -105,17 +119,57 @@ function useOpenProject() {
 }
 
 function useProjectStats() {
-  const { project, ordered, userId } = useWD()
+  const { project, ordered } = useWD()
   const seconds = ordered.reduce((sum, f) => sum + f.duration, 0)
   const target = project.durationSeconds
   return {
     project,
-    me: initials(userById(userId).name),
     stats: `${ordered.length} ${ordered.length === 1 ? 'cena' : 'cenas'} · ${target ? `${seconds} de ${target}s` : `${seconds}s`}`,
   }
 }
 
-const publish = () => toast('Publicar chega em breve.')
+/** Members of a shared project, the ones online first, with a green dot. */
+function MemberStack() {
+  const { project, userId } = useWD()
+  const online = useSync((s) => s.byProject[project.id]?.online) ?? []
+  if (!project.remote) return null
+  const others = project.members.filter((m) => m.userId !== userId).sort((a, b) => Number(online.includes(b.userId)) - Number(online.includes(a.userId)))
+  if (!others.length) return null
+  return (
+    <div className="hidden items-center -space-x-1.5 lg:flex" aria-label={`${others.length} ${others.length === 1 ? 'pessoa' : 'pessoas'} no projeto`}>
+      {others.slice(0, 4).map((m) => (
+        <Avatar key={m.userId} id={m.userId} name={userById(m.userId).name} size={30} online={online.includes(m.userId)} className="ring-2 ring-[#F4F4F5]" />
+      ))}
+      {others.length > 4 && <span className="flex size-[30px] items-center justify-center rounded-full bg-[#E4E4E7] text-[11px] font-semibold ring-2 ring-[#F4F4F5]">+{others.length - 4}</span>}
+    </div>
+  )
+}
+
+/** Round header button that opens a side panel (chat, folder). Pressed while its panel shows. */
+function PanelButton({ panel, label, badge }: { panel: Exclude<SidePanel, 'scene'>; label: string; badge?: number }) {
+  const active = useWS((s) => s.panel === panel)
+  const Icon = panel === 'chat' ? MessageCircle : FolderClosed
+  return (
+    <button
+      aria-label={badge ? `${label} (${badge} novas)` : label}
+      aria-pressed={active}
+      title={label}
+      onClick={() => useWS.getState().set({ panel: active ? 'scene' : panel })}
+      className={cx(
+        'relative flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors',
+        active ? 'border-[#18181B] bg-[#18181B] text-white' : 'border-[#E4E4E7] bg-white text-[#18181B] shadow-[0_1px_2px_#0000000A] hover:bg-[#FAFAFA]',
+      )}
+    >
+      <Icon className="size-[17px]" strokeWidth={1.8} />
+      {!!badge && <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] leading-none font-semibold text-white">{badge > 9 ? '9+' : badge}</span>}
+    </button>
+  )
+}
+
+function ChatButton() {
+  const { project, userId } = useWD()
+  return <PanelButton panel="chat" label="Chat do projeto" badge={useUnread(project.id, userId)} />
+}
 
 function BackButton() {
   return (
@@ -146,13 +200,9 @@ function PresentButton({ compact = false, onPresent }: { compact?: boolean; onPr
   )
 }
 
-function Avatar({ initials }: { initials: string }) {
-  return <span className="flex size-8 shrink-0 items-center justify-center rounded-2xl bg-[#E4E4E7] text-[11px] leading-[14px] font-semibold text-[#18181B]">{initials}</span>
-}
-
 /** Desktop and tablet header. `compact` (tablet) shrinks Exportar to an icon; if room still runs out, the project name truncates first. */
-function Header({ compact = false, onPresent }: { compact?: boolean; onPresent: () => void }) {
-  const { project, me, stats } = useProjectStats()
+function Header({ compact = false, onPresent, onSettings }: { compact?: boolean; onPresent: () => void; onSettings: () => void }) {
+  const { project, stats } = useProjectStats()
   return (
     <header className="absolute inset-x-0 top-0 flex h-[72px] items-center justify-between gap-6 px-7">
       <div className="flex min-w-0 items-center gap-3">
@@ -166,25 +216,26 @@ function Header({ compact = false, onPresent }: { compact?: boolean; onPresent: 
         <h1 className="truncate text-[15px] leading-[18px] font-medium tracking-[-0.01em] text-[#18181B]">{project.name}</h1>
         <span className="shrink-0 text-[13px] leading-4 text-faint">{stats}</span>
       </div>
-      <div className="flex shrink-0 items-center gap-6">
+      <div className="flex shrink-0 items-center gap-5">
+        <MemberStack />
         <div className="flex items-center gap-2">
           <ExportMenu iconOnly={compact} />
           <div className="flex items-center gap-2.5">
+            <ChatButton />
+            <PanelButton panel="files" label="Arquivos do projeto" />
             <PresentButton onPresent={onPresent} />
-            <button onClick={publish} className="flex h-9 items-center rounded-full bg-accent px-5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
-              Publicar
-            </button>
+            <ShareButton />
           </div>
         </div>
-        <Avatar initials={me} />
+        <AccountButton onSettings={onSettings} />
       </div>
     </header>
   )
 }
 
 /** Phone header: the back button replaces "Projetos ›", and the stats go under the name. */
-function MobileHeader({ onPresent }: { onPresent: () => void }) {
-  const { project, me, stats } = useProjectStats()
+function MobileHeader({ onPresent, onSettings }: { onPresent: () => void; onSettings: () => void }) {
+  const { project, stats } = useProjectStats()
   return (
     <header className="absolute inset-x-0 top-0 flex h-14 items-center justify-between gap-2.5 px-4">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
@@ -196,10 +247,8 @@ function MobileHeader({ onPresent }: { onPresent: () => void }) {
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
         <PresentButton compact onPresent={onPresent} />
-        <button onClick={publish} className="flex h-8 items-center rounded-full bg-accent px-3.5 text-[14px] leading-[18px] font-medium text-white transition-colors hover:bg-[#0077ed]">
-          Publicar
-        </button>
-        <Avatar initials={me} />
+        <ShareButton compact />
+        <AccountButton onSettings={onSettings} />
       </div>
     </header>
   )
@@ -231,22 +280,44 @@ function WorkspaceLayout() {
   useOpenProject()
   // Held here, not in a layout: entering full screen can resize the window into another layout.
   const [presenting, setPresenting] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const present = () => setPresenting(true)
+  const settings = () => setSettingsOpen(true)
   return (
     <>
-      {screen === 'mobile' ? <MobileLayout onPresent={present} /> : screen === 'tablet' ? <TabletLayout onPresent={present} /> : <DesktopLayout onPresent={present} />}
+      {screen === 'mobile' ? (
+        <MobileLayout onPresent={present} onSettings={settings} />
+      ) : screen === 'tablet' ? (
+        <TabletLayout onPresent={present} onSettings={settings} />
+      ) : (
+        <DesktopLayout onPresent={present} onSettings={settings} />
+      )}
       {presenting && <Presentation onClose={() => setPresenting(false)} />}
+      <ShareModal />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   )
 }
 
-function DesktopLayout({ onPresent }: { onPresent: () => void }) {
+/** The right-hand panel's content on desktop: the scene inspector, the chat or the folder. */
+function SidePanelContent() {
+  const panel = useWS((s) => s.panel)
+  if (panel === 'scene') return <Inspector />
+  return <PanelFrame>{panel === 'chat' ? <ChatPanel /> : <FilesPanel />}</PanelFrame>
+}
+
+function DesktopLayout({ onPresent, onSettings }: { onPresent: () => void; onSettings: () => void }) {
   return (
     <div className="relative h-full min-h-[600px] overflow-hidden bg-[#F4F4F5]">
-      <Header onPresent={onPresent} />
+      <Header onPresent={onPresent} onSettings={onSettings} />
 
       <div className="absolute inset-x-4 top-[72px] bottom-4 overflow-hidden rounded-[20px] border border-[#E4E4E7]">
         <SceneCanvas />
+      </div>
+
+      {/* Bottom left, above the zoom: the briefing node sits at the top left of the canvas. */}
+      <div className="absolute bottom-[84px] left-8" style={{ width: 'min(360px, calc(50% - 350px))' }}>
+        <ExampleTips />
       </div>
 
       <div className="absolute bottom-8 left-8">
@@ -262,7 +333,7 @@ function DesktopLayout({ onPresent }: { onPresent: () => void }) {
       </div>
 
       <div className="absolute top-[88px] right-8 bottom-8 w-[350px]">
-        <Inspector />
+        <SidePanelContent />
       </div>
     </div>
   )
@@ -271,12 +342,17 @@ function DesktopLayout({ onPresent }: { onPresent: () => void }) {
 const TABLET_SHEET = 340
 
 /** Tablet: the inspector becomes a bottom sheet; zoom and the note button sit in a row above the prompt box. */
-function TabletLayout({ onPresent }: { onPresent: () => void }) {
+function TabletLayout({ onPresent, onSettings }: { onPresent: () => void; onSettings: () => void }) {
   // Not in the design: tapping the grabber expands the sheet to read long histories, and hides the prompt box meanwhile.
   const [expanded, setExpanded] = useState(false)
+  const panel = useWS((s) => s.panel)
   return (
     <div className="relative h-full min-h-[600px] overflow-hidden bg-[#F4F4F5]">
-      <Header compact onPresent={onPresent} />
+      <Header compact onPresent={onPresent} onSettings={onSettings} />
+
+      <div className="absolute top-[88px] right-8 z-10" style={{ width: 'min(380px, calc(100% - 64px))' }}>
+        <ExampleTips />
+      </div>
 
       <div className="absolute inset-x-4 top-[72px] bottom-4 overflow-hidden rounded-[20px] border border-[#E4E4E7]">
         <SceneCanvas />
@@ -292,8 +368,8 @@ function TabletLayout({ onPresent }: { onPresent: () => void }) {
         </div>
       )}
 
-      <BottomSheet className="inset-x-4" height={expanded ? '72%' : TABLET_SHEET} onGrab={() => setExpanded((v) => !v)} grabLabel={expanded ? 'Recolher versões' : 'Expandir versões'}>
-        <InspectorSheetContent layout="row" />
+      <BottomSheet className="inset-x-4" height={expanded ? '72%' : TABLET_SHEET} onGrab={() => setExpanded((v) => !v)} grabLabel={expanded ? 'Recolher painel' : 'Expandir painel'}>
+        {panel === 'scene' ? <InspectorSheetContent layout="row" /> : panel === 'chat' ? <ChatPanel /> : <FilesPanel />}
       </BottomSheet>
     </div>
   )
@@ -310,26 +386,43 @@ function useVersionLabel() {
 }
 
 /** Phone: full-width canvas, a dock at the bottom, and the versions in a sheet that opens on demand. */
-function MobileLayout({ onPresent }: { onPresent: () => void }) {
+function MobileLayout({ onPresent, onSettings }: { onPresent: () => void; onSettings: () => void }) {
   const addNote = useAddNote()
   const version = useVersionLabel()
+  const { project, userId } = useWD()
+  const unread = useUnread(project.id, userId)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const panel = useWS((s) => s.panel)
+
+  // Closing the sheet goes back to the scene, so the chat counts new messages again.
+  const closeSheet = () => {
+    setSheetOpen(false)
+    useWS.getState().set({ panel: 'scene' })
+  }
 
   useEffect(() => {
     if (!sheetOpen) return
-    const close = (e: KeyboardEvent) => e.key === 'Escape' && setSheetOpen(false)
+    const close = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setSheetOpen(false)
+      useWS.getState().set({ panel: 'scene' })
+    }
     document.addEventListener('keydown', close)
     return () => document.removeEventListener('keydown', close)
   }, [sheetOpen])
 
   const openVersions = () => {
-    useWS.getState().set({ inspectorTab: 'versions' })
+    useWS.getState().set({ inspectorTab: 'versions', panel: 'scene' })
+    setSheetOpen(true)
+  }
+  const openPanel = (p: Exclude<SidePanel, 'scene'>) => {
+    useWS.getState().set({ panel: p })
     setSheetOpen(true)
   }
 
   return (
     <div className="relative h-full overflow-hidden bg-[#F4F4F5]">
-      <MobileHeader onPresent={onPresent} />
+      <MobileHeader onPresent={onPresent} onSettings={onSettings} />
 
       <div className="absolute inset-x-0 top-14 bottom-0 overflow-hidden rounded-t-[20px] border-t border-[#E4E4E7]">
         <SceneCanvas />
@@ -344,18 +437,27 @@ function MobileLayout({ onPresent }: { onPresent: () => void }) {
               <path d="M3 7.5L6 4.5l3 3" fill="none" stroke="#71717B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <button aria-label="Nova nota" onClick={() => void addNote()} className={cx(GLASS_PILL, 'flex size-10 items-center justify-center rounded-[20px]')}>
-            <NoteIcon size={22} />
-          </button>
+          <div className="flex gap-2">
+            <button aria-label={unread ? `Chat (${unread} novas)` : 'Chat'} onClick={() => openPanel('chat')} className={cx(GLASS_PILL, 'relative flex size-10 items-center justify-center rounded-[20px]')}>
+              <MessageCircle className="size-[18px]" strokeWidth={1.8} />
+              {!!unread && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full border-2 border-white bg-accent" />}
+            </button>
+            <button aria-label="Arquivos" onClick={() => openPanel('files')} className={cx(GLASS_PILL, 'flex size-10 items-center justify-center rounded-[20px]')}>
+              <FolderClosed className="size-[18px]" strokeWidth={1.8} />
+            </button>
+            <button aria-label="Nova nota" onClick={() => void addNote()} className={cx(GLASS_PILL, 'flex size-10 items-center justify-center rounded-[20px]')}>
+              <NoteIcon size={22} />
+            </button>
+          </div>
         </div>
         <PromptBox compact />
       </div>
 
       {sheetOpen && (
         <>
-          <div aria-hidden onClick={() => setSheetOpen(false)} className="fade-in absolute inset-0 bg-black/20" />
-          <BottomSheet modal className="slide-up inset-x-0" height="70%" onGrab={() => setSheetOpen(false)} grabLabel="Fechar versões">
-            <InspectorSheetContent layout="stack" />
+          <div aria-hidden onClick={closeSheet} className="fade-in absolute inset-0 bg-black/20" />
+          <BottomSheet modal className="slide-up inset-x-0" height={panel === 'scene' ? '70%' : '86%'} onGrab={closeSheet} grabLabel="Fechar painel">
+            {panel === 'scene' ? <InspectorSheetContent layout="stack" /> : panel === 'chat' ? <ChatPanel closable={false} /> : <FilesPanel closable={false} />}
           </BottomSheet>
         </>
       )}

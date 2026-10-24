@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cx, Spinner, toast, toastError } from '../../components/ui'
+import { cx, Select, Spinner, toast, toastError } from '../../components/ui'
 import { timeAgo } from '../../lib/hooks'
 import { commitFrame, restoreRevision, updateFrame } from '../../lib/repo'
 import { userById } from '../../lib/session'
@@ -161,6 +161,8 @@ function Versions({ frame, revisions }: { frame: Frame; revisions: Revision[] })
 const FIELD_LABEL = 'text-[12px] leading-4 font-medium text-muted'
 // 16px on a phone: iOS zooms into any field with smaller text.
 const FIELD = 'w-full rounded-[10px] border border-[#E4E4E7] bg-white px-3 py-2 text-[14px] leading-5 text-[#18181B] outline-none transition-colors focus:border-accent max-md:text-[16px] max-md:leading-[22px]'
+// The same box for the app's own dropdowns, which draw their label and chevron.
+const SELECT = 'flex h-[38px] w-full justify-between rounded-[10px] border border-[#E4E4E7] bg-white px-3 hover:border-[#D4D4D8] aria-expanded:border-accent max-md:text-[16px]'
 
 function Sheet({ frame }: { frame: Frame }) {
   const { project, userId } = useWD()
@@ -201,33 +203,21 @@ function Sheet({ frame }: { frame: Frame }) {
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>Formato</span>
-            <select className={FIELD} value={frame.aspect ?? project.aspect} onChange={(e) => set({ aspect: e.target.value === project.aspect ? undefined : (e.target.value as Aspect) })}>
-              {(Object.keys(FORMAT_LABEL) as Aspect[]).map((a) => (
-                <option key={a} value={a}>
-                  {FORMAT_LABEL[a]}
-                </option>
-              ))}
-            </select>
+            <Select
+              label="Formato"
+              className={SELECT}
+              value={frame.aspect ?? project.aspect}
+              options={(Object.keys(FORMAT_LABEL) as Aspect[]).map((a) => ({ value: a, label: FORMAT_LABEL[a] }))}
+              onChange={(a) => set({ aspect: a === project.aspect ? undefined : a })}
+            />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>Plano</span>
-            <select className={FIELD} value={frame.shot} onChange={(e) => set({ shot: e.target.value as Frame['shot'] })}>
-              {SHOT_TYPES.map((s) => (
-                <option key={s} value={s}>
-                  {SHOT_LABEL[s]}
-                </option>
-              ))}
-            </select>
+            <Select label="Plano" className={SELECT} value={frame.shot} options={SHOT_TYPES.map((s) => ({ value: s, label: SHOT_LABEL[s] }))} onChange={(shot) => set({ shot })} />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>Câmera</span>
-            <select className={FIELD} value={frame.movement} onChange={(e) => set({ movement: e.target.value as Frame['movement'] })}>
-              {CAMERA_MOVES.map((m) => (
-                <option key={m} value={m}>
-                  {MOVE_LABEL[m]}
-                </option>
-              ))}
-            </select>
+            <Select label="Câmera" className={SELECT} value={frame.movement} options={CAMERA_MOVES.map((m) => ({ value: m, label: MOVE_LABEL[m] }))} onChange={(movement) => set({ movement })} align="right" />
           </label>
         </div>
       </div>

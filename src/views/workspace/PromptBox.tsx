@@ -1,13 +1,20 @@
 import { useState } from 'react'
 import { cx, Spinner, toast, toastError } from '../../components/ui'
+import { restoreRevision } from '../../lib/repo'
 import { reviseScene, type ReviseFocus } from '../../lib/scenes'
+import { can } from '../../lib/session'
 import { useWD } from './context'
 import { useWS } from './store'
 
-const SHORTCUTS: { focus: ReviseFocus; label: string }[] = [
-  { focus: 'drawing', label: 'Só o desenho' },
-  { focus: 'dialogue', label: 'Só o diálogo' },
-  { focus: 'shorter', label: 'Mais curta' },
+/**
+ * Each shortcut limits what may change (`focus`). Typed text is the request; without text, `ask` is.
+ * The first three come from the design; the last one is the request teams make most.
+ */
+const SHORTCUTS: { id: string; focus: ReviseFocus; label: string; ask: string }[] = [
+  { id: 'drawing', focus: 'drawing', label: 'Só o desenho', ask: 'Só o desenho' },
+  { id: 'dialogue', focus: 'dialogue', label: 'Só o diálogo', ask: 'Só o diálogo' },
+  { id: 'shorter', focus: 'shorter', label: 'Mais curta', ask: 'Mais curta' },
+  { id: 'impact', focus: 'all', label: 'Mais impacto', ask: 'Deixar a cena com mais impacto e ritmo, sem mudar a ideia' },
 ]
 
 /**
@@ -16,25 +23,48 @@ const SHORTCUTS: { focus: ReviseFocus; label: string }[] = [
  * `compact` is the phone layout: smaller type, and shortcuts that scroll sideways.
  */
 export function PromptBox({ compact = false }: { compact?: boolean }) {
-  const { ordered, userId } = useWD()
+  const { ordered, userId, role } = useWD()
+  const editable = can(role, 'edit')
   const selectedId = useWS((s) => s.selectedId)
   const index = ordered.findIndex((f) => f.id === selectedId)
   const frame = ordered[index]
   const [text, setText] = useState('')
-  const [busy, setBusy] = useState<ReviseFocus>()
+  /** The shortcut (or 'send') whose request is running. */
+  const [busy, setBusy] = useState<string>()
 
-  const send = async (focus: ReviseFocus, label?: string) => {
+  const send = async (focus: ReviseFocus, ask?: string, id = 'send') => {
     if (!frame || busy) return
-    const instruction = text.trim() || label
+    const instruction = text.trim() || ask
     if (!instruction) return
-    setBusy(focus)
+    const before = frame.headRevisionId
+    const number = index + 1
+    setBusy(id)
     try {
       await reviseScene({ frameId: frame.id, instruction, focus, userId })
       setText('')
       const browsing = { ...useWS.getState().browsing }
       delete browsing[frame.id]
       useWS.getState().set({ browsing })
-      toast(`Cena ${index + 1} refeita`, { tone: 'ok' })
+      // Undo restores the version from before the request, as a new version: nothing is lost either way.
+      const undo = async () => {
+        try {
+          if (before) await restoreRevision(before, userId)
+          toast(`Cena ${number} voltou como estava`, { tone: 'ok' })
+        } catch (e) {
+          toastError(e)
+        }
+      }
+      toast(
+        <span className="flex items-center gap-3">
+          Cena {number} refeita
+          {before && (
+            <button onClick={() => void undo()} className="font-semibold text-[#64D2FF] hover:underline">
+              Desfazer
+            </button>
+          )}
+        </span>,
+        { tone: 'ok', duration: 8000 },
+      )
     } catch (e) {
       toastError(e)
     } finally {
@@ -67,7 +97,7 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
       <textarea
         rows={1}
         value={text}
-        disabled={!frame || !!busy}
+        disabled={!frame || !!busy || !editable}
         onChange={(e) => {
           setText(e.target.value)
           e.target.style.height = 'auto'
@@ -80,7 +110,7 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
           }
         }}
         aria-label="O que mudar nesta cena"
-        placeholder={compact && frame ? 'Descreva o que mudar nesta cena' : undefined}
+        placeholder={!editable ? 'Seu papel neste projeto não permite editar' : compact && frame ? 'Descreva o que mudar nesta cena' : undefined}
         className={cx('resize-none bg-transparent text-[#1D1D1F] outline-none placeholder:text-faint', compact ? 'text-[16px] leading-[22px]' : 'text-[18px] leading-[26px]')}
       />
       <div className={cx('flex items-center justify-between', compact ? 'gap-2' : 'gap-3')}>
@@ -92,31 +122,32 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
         >
           {SHORTCUTS.map((s) => (
             <button
-              key={s.focus}
-              disabled={!frame || !!busy}
-              onClick={() => void send(s.focus, s.label)}
+              key={s.id}
+              disabled={!frame || !!busy || !editable}
+              title={text.trim() ? `Aplicar o pedido mudando ${s.focus === 'all' ? 'o que for preciso' : s.label.toLowerCase()}` : s.ask}
+              onClick={() => void send(s.focus, s.ask, s.id)}
               className={cx(
                 'flex shrink-0 items-center gap-1.5 font-medium whitespace-nowrap text-black shadow-[inset_0_1px_0_#FFFFFFE6,0_0_0_1px_#0000000F] transition-colors hover:bg-white/85 disabled:opacity-50',
                 compact ? 'h-8 rounded-2xl border border-white/75 bg-white/55 px-3 text-[13px] leading-4' : 'h-9 rounded-[18px] border border-white/75 bg-white/55 px-3.5 text-[14px] leading-[18px]',
               )}
             >
-              {busy === s.focus && <Spinner className="size-3.5" />}
+              {busy === s.id && <Spinner className="size-3.5" />}
               {s.label}
             </button>
           ))}
         </div>
         <button
           aria-label="Refazer cena"
-          disabled={!frame || !!busy || !text.trim()}
+          disabled={!frame || !!busy || !text.trim() || !editable}
           onClick={() => void send('all')}
           className={cx(
             'relative flex shrink-0 items-center justify-center rounded-full bg-accent transition-[background-color,opacity] hover:bg-[#0077ed]',
             // 40px on a phone, with a 44px touch target.
             compact ? 'size-10 after:absolute after:-inset-0.5 after:content-[""]' : 'size-11',
-            busy !== 'all' && 'disabled:opacity-40',
+            busy !== 'send' && 'disabled:opacity-40',
           )}
         >
-          {busy === 'all' ? (
+          {busy === 'send' ? (
             <Spinner className="text-white" />
           ) : (
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>

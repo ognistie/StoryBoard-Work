@@ -1,62 +1,47 @@
-import { Download, FileDown, FileText, Printer, Table } from 'lucide-react'
+import { Download, FileDown, FileText, FolderInput, Printer, Table } from 'lucide-react'
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FrameImage } from '../../components/FrameImage'
-import { Menu, MenuItem, toast } from '../../components/ui'
+import { Menu, MenuItem, toast, toastError } from '../../components/ui'
 import { MOVE_LABEL, SHOT_LABEL } from '../../lib/context'
 import { db } from '../../lib/db'
+import { download, scriptFileName, scriptMarkdown, shotListCsv, shotListFileName, slug } from './exporters'
+import { addFile } from '../../lib/repo'
+import { can } from '../../lib/session'
 import { useWD } from './context'
 import { parseDialogue } from './scene'
 import type { Project } from '../../lib/types'
 
-function download(name: string, data: Blob) {
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(data)
-  a.download = name
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000)
-}
-
 // Vertical drawings need more columns to fit an A4 landscape page.
 const PRINT_COLUMNS: Record<Project['aspect'], number> = { '9:16': 5, '1:1': 4, '16:9': 3, '2.39:1': 3 }
-
-const slug = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/gi, '-')
-    .toLowerCase()
 
 /**
  * Exports the scene plan: PDF, Markdown script, CSV shot list, or the whole project as JSON.
  * @param iconOnly A 36px icon instead of the word, for the tablet header where the project name needs the room.
  */
 export function ExportMenu({ iconOnly = false }: { iconOnly?: boolean }) {
-  const { project, ordered, scenes, briefing } = useWD()
+  const { project, ordered, scenes, briefing, userId, role } = useWD()
   const [printing, setPrinting] = useState(false)
 
   const markdown = () => {
-    const total = ordered.reduce((sum, f) => sum + f.duration, 0)
-    const lines = [`# ${project.name}`, '', `${ordered.length} cenas · ${total}s · ${project.aspect}`, '']
-    if (briefing) lines.push('## Briefing', '', briefing.text, '')
-    ordered.forEach((f, i) => {
-      const { speaker, line } = parseDialogue(f.dialogue)
-      lines.push(`## Cena ${i + 1} · ${f.title} (${f.duration}s)`, '', `**Plano:** ${SHOT_LABEL[f.shot]} · **Câmera:** ${MOVE_LABEL[f.movement]} · **Formato:** ${f.aspect ?? project.aspect}`, '', f.description, '')
-      if (line) lines.push(`> **${speaker ?? 'Fala'}:** ${line}`, '')
-    })
-    download(`roteiro-${slug(project.name)}.md`, new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }))
+    download(scriptFileName(project), scriptMarkdown(project, ordered, briefing))
     toast('Roteiro exportado', { tone: 'ok' })
   }
 
   const shotList = () => {
-    const rows = [['#', 'Cena', 'Título', 'Plano', 'Movimento', 'Ângulo', 'Duração (s)', 'Personagens', 'Locação', 'Luz', 'Ação', 'Diálogo', 'Status']]
-    ordered.forEach((f, i) => {
-      const s = scenes.find((x) => x.id === f.sceneId)
-      rows.push([String(i + 1), s ? `${s.number}. ${s.heading}` : '', f.title, SHOT_LABEL[f.shot], MOVE_LABEL[f.movement], f.angle, String(f.duration), f.characters.join(', '), f.location, f.lighting, f.action, f.dialogue, f.status])
-    })
-    const csv = rows.map((r) => r.map((c) => `"${(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n')
-    download(`shotlist-${slug(project.name)}.csv`, new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }))
-    toast('Shot list exportada', { tone: 'ok' })
+    download(shotListFileName(project), shotListCsv(ordered, scenes))
+    toast('Decupagem exportada', { tone: 'ok' })
+  }
+
+  /** Keeps a dated copy of the script and the shot list in the project folder, as new versions. */
+  const saveToFolder = async () => {
+    try {
+      await addFile(project.id, userId, { name: scriptFileName(project), blob: scriptMarkdown(project, ordered, briefing), source: 'export' })
+      await addFile(project.id, userId, { name: shotListFileName(project), blob: shotListCsv(ordered, scenes), source: 'export' })
+      toast('Roteiro e decupagem salvos na pasta do projeto', { tone: 'ok' })
+    } catch (e) {
+      toastError(e)
+    }
   }
 
   const backup = async () => {
@@ -91,12 +76,22 @@ export function ExportMenu({ iconOnly = false }: { iconOnly?: boolean }) {
     toast('Pacote do projeto exportado', { tone: 'ok' })
   }
 
+  /** Prints once every drawing of the print layout has an image decoded, so no frame comes out blank. */
   const print = () => {
     setPrinting(true)
-    setTimeout(() => {
-      window.print()
-      setPrinting(false)
-    }, 600)
+    const started = performance.now()
+    const ready = () => {
+      const root = document.querySelector('.print-root')
+      const imgs = root ? [...root.querySelectorAll('img')] : []
+      // Object URLs resolve from IndexedDB a moment after mounting; wait until each frame has one (at most 5 s).
+      const waiting = root && imgs.length < ordered.filter((f) => f.imageId).length && performance.now() - started < 5000
+      if (waiting) return void setTimeout(ready, 100)
+      void Promise.all(imgs.map((img) => img.decode().catch(() => undefined))).then(() => {
+        window.print()
+        setPrinting(false)
+      })
+    }
+    requestAnimationFrame(ready)
   }
 
   return (
@@ -124,11 +119,19 @@ export function ExportMenu({ iconOnly = false }: { iconOnly?: boolean }) {
               Roteiro (Markdown)
             </MenuItem>
             <MenuItem icon={<Table />} onClick={() => (close(), shotList())}>
-              Shot list (CSV)
+              Decupagem (CSV)
             </MenuItem>
             <MenuItem icon={<FileDown />} onClick={() => (close(), backup())}>
               Pacote completo (JSON)
             </MenuItem>
+            {can(role, 'edit') && (
+              <>
+                <div className="mx-1 my-1 border-t border-line" />
+                <MenuItem icon={<FolderInput />} onClick={() => (close(), void saveToFolder())}>
+                  Salvar roteiro e decupagem na pasta
+                </MenuItem>
+              </>
+            )}
           </>
         )}
       </Menu>

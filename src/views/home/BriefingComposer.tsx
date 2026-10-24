@@ -1,17 +1,17 @@
 import { Paperclip, X } from 'lucide-react'
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { navigate } from '../../App'
-import { cx, Spinner, toastError } from '../../components/ui'
+import { cx, Select, Spinner, toastError } from '../../components/ui'
 import { createProjectFromBriefing, type BriefingFormat } from '../../lib/briefing'
 import { ACCEPT_DOCS } from '../../lib/fileText'
 import { useSession } from '../../lib/session'
 
-const FORMAT_OPTIONS: { value: BriefingFormat; label: string }[] = [
-  { value: '9:16', label: 'Reels · 9:16' },
-  { value: '1:1', label: 'Feed · 1:1' },
-  { value: '16:9', label: 'YouTube · 16:9' },
+const FORMAT_OPTIONS: { value: BriefingFormat; label: string; hint: string }[] = [
+  { value: '9:16', label: 'Reels · 9:16', hint: 'Reels, TikTok, Shorts, Stories' },
+  { value: '1:1', label: 'Feed · 1:1', hint: 'Post quadrado no feed' },
+  { value: '16:9', label: 'YouTube · 16:9', hint: 'YouTube, TV, site' },
 ]
-const DURATION_OPTIONS = [15, 30, 60]
+const DURATION_OPTIONS = [15, 30, 60].map((s) => ({ value: s, label: `${s}s`, hint: s === 15 ? 'Até 3 cenas' : s === 30 ? 'De 4 a 5 cenas' : 'Até 6 cenas' }))
 
 // Lighter glass for the controls that sit inside the composer.
 const INNER_GLASS = 'border border-white/75 bg-white/55 shadow-[inset_0_1px_0_rgb(255_255_255/0.9)]'
@@ -19,42 +19,10 @@ const INNER_GLASS = 'border border-white/75 bg-white/55 shadow-[inset_0_1px_0_rg
 const CHIP_GLASS = 'border border-white/70 bg-white/42 shadow-[inset_0_1px_0_rgb(255_255_255/0.9),0_4px_16px_rgb(0_0_0/0.08)] backdrop-blur-[24px] backdrop-saturate-[1.8]'
 const MAX_FIELD_HEIGHT = 160
 
-function Chevron() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden className="shrink-0">
-      <path d="M2.5 3.8L5 6.3l2.5-2.5" fill="none" stroke="#6E6E73" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 // On phones the format and length leave the field and sit below it as chips with the field's own glass.
 const PILL_STYLE = {
-  inline: cx('hidden h-11 rounded-full px-4 md:flex', INNER_GLASS),
-  chip: cx('flex h-9 rounded-[18px] px-3.5 md:hidden', CHIP_GLASS),
-}
-
-// The visible label sizes the pill; the native select sits invisibly on top, so the pill is as wide as the current choice.
-// Because the select is invisible, the pill draws its keyboard focus ring.
-function PillSelect<T extends string | number>({ label, value, options, onChange, disabled, variant }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; disabled: boolean; variant: keyof typeof PILL_STYLE }) {
-  return (
-    <div className={cx('relative shrink-0 items-center gap-1.5 transition-colors focus-within:bg-white/80 hover:bg-white/80 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent', PILL_STYLE[variant])}>
-      <span className="text-[14px] leading-[18px] font-medium text-fg">{options.find((o) => o.value === value)?.label}</span>
-      <Chevron />
-      <select
-        aria-label={label}
-        disabled={disabled}
-        value={String(value)}
-        onChange={(e) => onChange(options.find((o) => String(o.value) === e.target.value)!.value)}
-        className="absolute inset-0 cursor-pointer appearance-none opacity-0"
-      >
-        {options.map((o) => (
-          <option key={String(o.value)} value={String(o.value)}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
+  inline: cx('hidden h-11 rounded-full px-4 font-medium hover:bg-white/80 aria-expanded:bg-white/80 md:flex', INNER_GLASS),
+  chip: cx('flex h-9 rounded-[18px] px-3.5 font-medium hover:bg-white/70 aria-expanded:bg-white/70 md:hidden', CHIP_GLASS),
 }
 
 /** The pill where a briefing starts: text, an optional attachment, format and length. Sending creates the project. */
@@ -86,8 +54,8 @@ export function BriefingComposer() {
 
   const selects = (variant: keyof typeof PILL_STYLE) => (
     <>
-      <PillSelect label="Formato" value={format} options={FORMAT_OPTIONS} onChange={setFormat} disabled={busy} variant={variant} />
-      <PillSelect label="Duração" value={durationSeconds} options={DURATION_OPTIONS.map((s) => ({ value: s, label: `${s}s` }))} onChange={setDurationSeconds} disabled={busy} variant={variant} />
+      <Select label="Formato" value={format} options={FORMAT_OPTIONS} onChange={setFormat} disabled={busy} className={PILL_STYLE[variant]} align={variant === 'inline' ? 'right' : 'left'} />
+      <Select label="Duração" value={durationSeconds} options={DURATION_OPTIONS} onChange={setDurationSeconds} disabled={busy} className={PILL_STYLE[variant]} align={variant === 'inline' ? 'right' : 'left'} />
     </>
   )
 
