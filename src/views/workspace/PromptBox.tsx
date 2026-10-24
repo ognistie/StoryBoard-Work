@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { cx, Spinner, toast, toastError } from '../../components/ui'
 import { restoreRevision } from '../../lib/repo'
 import { reviseScene, type ReviseFocus } from '../../lib/scenes'
@@ -29,6 +29,7 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
   const index = ordered.findIndex((f) => f.id === selectedId)
   const frame = ordered[index]
   const [text, setText] = useState('')
+  const input = useRef<HTMLTextAreaElement>(null)
   /** The shortcut (or 'send') whose request is running. */
   const [busy, setBusy] = useState<string>()
 
@@ -73,9 +74,15 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
   }
 
   return (
+    // A click anywhere in the box but its buttons lands in the text field: the hint above it reads like a field.
     <div
+      onMouseDown={(e) => {
+        if (e.target === input.current || (e.target as HTMLElement).closest('button')) return
+        e.preventDefault()
+        input.current?.focus()
+      }}
       className={cx(
-        'glass flex flex-col !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A]',
+        'glass flex cursor-text flex-col !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A]',
         compact ? 'gap-3 rounded-[24px] pt-3.5 pr-3 pb-3 pl-4' : 'gap-[18px] rounded-[26px] pt-5 pr-4 pb-4 pl-6',
       )}
     >
@@ -95,6 +102,7 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
         {!(compact && frame) && <span className="truncate text-[13px] leading-4 text-faint">{frame ? 'Descreva o que mudar nesta cena' : 'Selecione uma cena no canvas'}</span>}
       </div>
       <textarea
+        ref={input}
         rows={1}
         value={text}
         disabled={!frame || !!busy || !editable}
