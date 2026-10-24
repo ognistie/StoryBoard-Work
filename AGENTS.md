@@ -17,8 +17,18 @@ Produto, design (arquivo no Paper) e o projeto de exemplo da iugu: `CONTEXT.md`.
 - A OpenAI só é chamada pelas funções da Vercel em `api/`, via AI SDK. A chave mora no servidor (`OPENAI_API_KEY`), então o site publicado funciona sem ninguém colar chave.
 - O formato de cada pedido e resposta fica em `src/lib/ai/contract.ts` (Zod), usado pelo navegador e pelo servidor. Uma tarefa nova de IA é um arquivo novo em `api/` mais o seu schema no contrato.
 - O app não gera imagens. O desenho de cada quadro vem do renderizador local (`src/lib/sketch.ts`).
+- Modelo de texto: `gpt-6-luna`, o mais barato da OpenAI (decisão de 24/10/2026, para o uso aberto de 7 dias). Troque com `OPENAI_TEXT_MODEL` na Vercel, sem mudar código.
+- As funções recusam pedidos de outros sites (cabeçalho `Origin`). Com o Upstash configurado, a IA fica limitada a 20 chamadas por minuto por rede.
 - Imports relativos no caminho do servidor (`api/` → `src/lib/ai/contract.ts`, `server.ts` → `src/lib/types.ts`) levam `.js`: a Vercel roda `api/` como ESM no Node.
-- Rodar local com IA: `vercel dev`. O `bun run dev` sobe só o Vite, sem `api/`.
+- Rodar local: `bun run dev` serve o Vite e as funções de `api/` (plugin em `vite.config.ts`), com as variáveis do `.env.local`. Modelo das variáveis em `.env.example`.
+
+## Colaboração
+
+- Login por e-mail e senha, convites por e-mail ou link, projetos compartilhados, chat do projeto e pasta de arquivos. Código do servidor em `src/server/`, contrato em `src/lib/collab/contract.ts`, sincronização em `src/lib/collab/sync.ts`.
+- Armazenamento: Upstash Redis pela integração da Vercel (`KV_REST_API_URL` e `KV_REST_API_TOKEN`). Sem essas variáveis, o `bun run dev` guarda tudo em memória e a Vercel desliga a colaboração; o app continua funcionando só no navegador.
+- Convite por e-mail precisa de `RESEND_API_KEY` (e `INVITE_FROM_EMAIL`). Sem ela, o app mostra o link para copiar.
+- Os projetos de exemplo são de cada navegador (`example: true`); ao compartilhar, viram projeto da conta.
+- Na Vercel Hobby cabem 12 funções. Hoje são 10 em `api/`.
 
 ## Trabalho em dupla no `main`
 
@@ -38,6 +48,7 @@ Duas pessoas, cada uma com seu agente, fazem push no mesmo `main`.
 ## Publicação
 
 - Vercel: projeto `andre-dezzy/decupa`, no ar em https://decupa-hackathon.vercel.app. Publique com `vercel deploy --prod`, na conta do André.
+- SEO: `index.html` (metadados e dados estruturados), `public/guia/storyboard-com-ia.html`, `public/robots.txt` e `public/sitemap.xml` usam o domínio acima. Mudou o domínio, mude nos quatro.
 - O repositório não está ligado à Vercel: push não publica.
 - Chaves moram nas variáveis da Vercel ou no 1Password, sempre fora do git.
 

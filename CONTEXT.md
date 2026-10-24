@@ -27,7 +27,7 @@ Este arquivo guarda o evento, o produto, o design e o projeto de exemplo. Códig
 - Mural: 4 quadros de storyboard flutuando nas bordas, inclinados; os 2 de baixo com 60% de opacidade. No app, vêm dos projetos mais recentes e abrem o projeto ao clicar.
 
 **Tela 2, canvas** (layout "painel dentro de painel", como o Magnific Spaces)
-- Moldura cinza com cabeçalho: voltar, "Projetos › nome do projeto", "5 cenas · 30 de 30s", botão azul em pílula **Publicar** (o que ele faz está fora de escopo) e avatar.
+- Moldura cinza com cabeçalho: voltar, "Projetos › nome do projeto", "5 cenas · 30 de 30s", botões redondos de Chat e Arquivos, play, botão azul em pílula **Compartilhar** (no Paper ainda se chama "Publicar") e avatar com o menu da conta.
 - Canvas num painel arredondado com grade de pontos, zoom 80%.
 - Nó do briefing no topo, ligado às cenas.
 - **Nós de cena no estilo do Magnific:** a imagem ocupa o cartão inteiro; o cartão segue o formato da cena (9:16 por padrão, cada cena pode ter o seu, ex.: 1:1). Em cima à direita, pílula de versão "‹ 3/3 ›" (azul quando a cena foi refeita). Embaixo, sobre sombra escura: quem fala, a fala, a descrição, e pílulas de plano, câmera (ponto vermelho) e formato. Acima do cartão: nome, "Cena N" e duração.
