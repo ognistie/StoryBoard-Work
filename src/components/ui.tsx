@@ -46,22 +46,29 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 export function Modal({ open, onClose, title, children, footer, width = 480 }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; width?: number }) {
   const ref = useRef<HTMLDivElement>(null)
+  // Callers pass a new onClose on every render. Reading it from a ref keeps the effect below to
+  // open and close only: re-running it on each keystroke moved focus away and back mid-typing.
+  const onCloseRef = useRef(onClose)
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  })
   useEffect(() => {
     if (!open) return
     const prev = document.activeElement as HTMLElement | null
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
       }
     }
     window.addEventListener('keydown', onKey, true)
-    setTimeout(() => ref.current?.querySelector<HTMLElement>('input,textarea,select,button[data-autofocus]')?.focus(), 30)
+    const focus = setTimeout(() => ref.current?.querySelector<HTMLElement>('input,textarea,select,button[data-autofocus]')?.focus(), 30)
     return () => {
+      clearTimeout(focus)
       window.removeEventListener('keydown', onKey, true)
       prev?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
   if (!open) return null
   return createPortal(
     <div className="fade-in fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/20 p-4 pt-[12vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
