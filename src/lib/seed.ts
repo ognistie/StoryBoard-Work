@@ -2,7 +2,8 @@ import { db } from './db'
 import { shortHash, uid } from './ids'
 import { emptyContent, putImage } from './repo'
 import { sketchToBlob } from './sketch'
-import type { AIRecord, Frame, FrameContent, Project, Revision, RevisionKind, SketchSpec } from './types'
+import { GUEST_ID } from './session'
+import { AI_AUTHOR, type AIRecord, type ChatMessage, type Frame, type FrameContent, type Project, type Revision, type RevisionKind, type SketchSpec } from './types'
 
 /** Demo workspace so the product can be explored immediately. */
 
@@ -40,6 +41,8 @@ interface SeedProject {
   frames: SeedFrame[]
   /** Sticky notes on the canvas, in canvas coordinates. */
   notes?: { text: string; authorId: string; minutesAgo: number; x: number; y: number; rotation: number }[]
+  /** The project's chat, oldest first: shows how the team and the assistant talk about the plan. */
+  chat?: (Omit<ChatMessage, 'id' | 'projectId' | 'createdAt'> & { minutesAgo: number })[]
 }
 
 const IUGU_BRIEFING_V1 =
@@ -58,6 +61,18 @@ const PROJECTS: SeedProject[] = [
     notes: [
       { text: 'Cliente pediu: nada de números de volume ou faturamento.', authorId: OWNER, minutesAgo: 5, x: 612, y: 160, rotation: -2.5 },
       { text: 'Cena 4 em 1:1 pra reaproveitar no feed.', authorId: 'u_rafael', minutesAgo: 24 * 60, x: 880, y: 150, rotation: 2 },
+    ],
+    chat: [
+      { authorId: 'u_rafael', text: 'Subi a cena 4 em 1:1 pra gente reaproveitar no feed. Alguém revisa a fala da cena 2?', minutesAgo: 40 },
+      { authorId: 'u_marina', text: '@ia a cena 2 está longa para um Reels? Como deixar mais ágil?', minutesAgo: 30 },
+      {
+        authorId: AI_AUTHOR,
+        askedBy: 'u_marina',
+        text: 'Sete segundos funcionam se o time-lapse carregar a passagem do dia. Para ganhar ritmo, corte a fala pela metade e deixe as três pílulas aparecerem uma a uma, no compasso da trilha.',
+        suggestions: [{ sceneNumber: 2, instruction: 'Encurtar a fala pela metade e mostrar as pílulas uma a uma' }],
+        minutesAgo: 29,
+      },
+      { authorId: 'u_marina', text: 'Perfeito. Cliente pediu nada de números, já deixei uma nota no canvas.', minutesAgo: 5 },
     ],
     frames: [
       {
@@ -395,9 +410,40 @@ async function seedProject(seed: SeedProject, now: number) {
     ],
     aspect: seed.aspect,
     durationSeconds: seed.frames.reduce((sum, f) => sum + (f.content.duration ?? 0), 0),
+    example: true,
     createdAt,
     updatedAt,
   })
+  await seedChat(projectId, seed, now)
+}
+
+async function seedChat(projectId: string, seed: SeedProject, now: number) {
+  for (const { minutesAgo, ...message } of seed.chat ?? []) await db.messages.add({ ...message, id: uid('msg'), projectId, createdAt: now - minutesAgo * MIN })
+}
+
+const EXAMPLES_FLAG = 'decupa.examples.v1'
+
+/**
+ * Browsers seeded before accounts existed: the seeded projects become examples, and projects the
+ * person made themself (owned by the demo producer) become the local guest's, so they stay visible.
+ */
+async function migrateLocalProjects() {
+  if (localStorage.getItem(EXAMPLES_FLAG)) return
+  const byName = new Map(PROJECTS.map((p) => [p.name, p]))
+  const now = Date.now()
+  await db.transaction('rw', db.projects, db.messages, async () => {
+    for (const p of await db.projects.toArray()) {
+      if (p.remote || p.example) continue
+      const seed = byName.get(p.name)
+      if (p.ownerId === OWNER && seed) {
+        await db.projects.update(p.id, { example: true })
+        await seedChat(p.id, seed, now)
+      }
+      else if (p.members.some((m) => m.userId === OWNER))
+        await db.projects.update(p.id, { ownerId: GUEST_ID, members: [{ userId: GUEST_ID, role: 'producer' as const }, ...p.members.filter((m) => m.userId !== OWNER)] })
+    }
+  })
+  localStorage.setItem(EXAMPLES_FLAG, '1')
 }
 
 let seeding: Promise<void> | null = null
@@ -411,16 +457,18 @@ export function seedDemo(): Promise<void> {
 }
 
 async function doSeed() {
-  if (localStorage.getItem(SEED_FLAG)) return
+  if (localStorage.getItem(SEED_FLAG)) return migrateLocalProjects()
   // Clears data from earlier demos (and earlier seed versions) before reseeding.
   await Promise.all(db.tables.map((t) => t.clear()))
   const now = Date.now()
   for (const project of PROJECTS) await seedProject(project, now)
   localStorage.setItem(SEED_FLAG, '1')
+  localStorage.setItem(EXAMPLES_FLAG, '1')
 }
 
 export async function resetDemo() {
   await db.delete()
   localStorage.removeItem(SEED_FLAG)
+  localStorage.removeItem(EXAMPLES_FLAG)
   location.reload()
 }

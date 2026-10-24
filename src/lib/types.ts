@@ -31,6 +31,10 @@ export interface Project {
   aspect: '16:9' | '2.39:1' | '9:16' | '1:1'
   /** Length asked for in the briefing. The scenes' durations may add up to something else. */
   durationSeconds?: number
+  /** Shared through the server: members come from there, and every change syncs. */
+  remote?: boolean
+  /** One of the example projects every browser gets. Anyone using this browser may edit it. */
+  example?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -222,6 +226,8 @@ export interface ContextDoc {
 
 export interface ContextDocVersion {
   id: string
+  /** Set on new versions; older ones only know their doc. */
+  projectId?: string
   docId: string
   version: number
   text: string
@@ -248,5 +254,56 @@ export interface ProjectEvent {
   actorId: string
   type: string
   message: string
+  createdAt: number
+}
+
+/** A message in the project's chat. Only members of the project see it. */
+export interface ChatMessage {
+  id: string
+  projectId: string
+  /** A user id, or AI_AUTHOR for answers of the assistant. */
+  authorId: string
+  text: string
+  /** For assistant answers: who asked. */
+  askedBy?: string
+  /** Scene changes the assistant suggests, applied with one click. */
+  suggestions?: { sceneNumber: number; instruction: string; appliedBy?: string }[]
+  createdAt: number
+}
+
+export const AI_AUTHOR = 'ai'
+
+/** A file in the project's folder. Uploading a file with the same name adds a version. */
+export interface ProjectFile {
+  id: string
+  projectId: string
+  name: string
+  /** 'upload' came from someone's computer; 'export' was saved from the project (script, shot list). */
+  source: 'upload' | 'export'
+  mime: string
+  headVersionId: string
+  versionCount: number
+  deleted?: boolean
+  createdAt: number
+  updatedAt: number
+  updatedBy: string
+}
+
+export interface FileVersion {
+  id: string
+  projectId: string
+  fileId: string
+  number: number
+  blobId: string
+  size: number
+  mime: string
+  authorId: string
+  createdAt: number
+}
+
+/** Bytes of a file version. Never changes once written. */
+export interface StoredBlob {
+  id: string
+  blob: Blob
   createdAt: number
 }

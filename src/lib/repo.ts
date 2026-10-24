@@ -1,15 +1,19 @@
 import { db } from './db'
+import { AI_AUTHOR } from './types'
 import { shortHash, uid } from './ids'
 import { assertCan, roleIn, type Capability } from './session'
+import { MAX_BLOB_BYTES } from './collab/contract'
 import type {
   AIRecord,
   ArtStyle,
   Asset,
+  ChatMessage,
   ContextDoc,
   DocKind,
   FrameContent,
   Note,
   Project,
+  ProjectFile,
   Revision,
   RevisionKind,
   Role,
@@ -273,7 +277,7 @@ export async function saveDoc(
   }
   await db.docs.put(doc)
   if (!existing || existing.version !== version) {
-    await db.docVersions.add({ id: uid('dv'), docId: id, version, text: input.text, createdAt: now, authorId: actorId })
+    await db.docVersions.add({ id: uid('dv'), projectId, docId: id, version, text: input.text, createdAt: now, authorId: actorId })
     await logEvent(projectId, actorId, 'doc.saved', `Documento “${input.title}” ${existing ? `atualizado para v${version}` : 'adicionado'}`)
   }
   return id
@@ -312,4 +316,94 @@ export async function deleteNote(noteId: string, actorId: string) {
   if (!note) return
   await authorize(note.projectId, actorId, 'comment')
   await db.notes.delete(noteId)
+}
+
+// ---------------------------------------------------------------- chat
+
+export async function sendMessage(projectId: string, actorId: string, text: string): Promise<ChatMessage> {
+  await authorize(projectId, actorId, 'comment')
+  const clean = text.trim().slice(0, 4000)
+  if (!clean) throw new Error('Escreva uma mensagem.')
+  const message: ChatMessage = { id: uid('msg'), projectId, authorId: actorId, text: clean, createdAt: Date.now() }
+  await db.messages.add(message)
+  return message
+}
+
+/** Stores an answer of the assistant. `askedBy` is the member whose question it answers. */
+export async function addAssistantMessage(projectId: string, askedBy: string, text: string, suggestions: ChatMessage['suggestions'] = []) {
+  await authorize(projectId, askedBy, 'comment')
+  const message: ChatMessage = { id: uid('msg'), projectId, authorId: AI_AUTHOR, askedBy, text, suggestions, createdAt: Date.now() }
+  await db.messages.add(message)
+  return message
+}
+
+export async function markSuggestionApplied(messageId: string, index: number, actorId: string) {
+  const message = await db.messages.get(messageId)
+  if (!message?.suggestions?.[index]) return
+  await authorize(message.projectId, actorId, 'edit')
+  const suggestions = message.suggestions.map((s, i) => (i === index ? { ...s, appliedBy: actorId } : s))
+  await db.messages.update(messageId, { suggestions })
+}
+
+// ---------------------------------------------------------------- file folder
+
+/**
+ * Adds a file to the project's folder. A file with the same name (ignoring case) gets a new version,
+ * so earlier versions stay downloadable. Bytes are append-only, like images.
+ */
+export async function addFile(projectId: string, actorId: string, input: { name: string; blob: Blob; source: ProjectFile['source'] }): Promise<string> {
+  await authorize(projectId, actorId, 'edit')
+  const name = input.name.trim().replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) || 'arquivo'
+  if (input.blob.size > MAX_BLOB_BYTES) throw new Error(`“${name}” passa de 3 MB.`)
+  const now = Date.now()
+  const mime = input.blob.type || 'application/octet-stream'
+  const blobId = uid('blob')
+  return db.transaction('rw', db.files, db.fileVersions, db.blobs, db.events, db.projects, async () => {
+    const existing = (await db.files.where('projectId').equals(projectId).toArray()).find((f) => !f.deleted && f.name.toLowerCase() === name.toLowerCase())
+    const fileId = existing?.id ?? uid('file')
+    const number = (existing?.versionCount ?? 0) + 1
+    const versionId = uid('fv')
+    await db.blobs.add({ id: blobId, blob: input.blob, createdAt: now })
+    await db.fileVersions.add({ id: versionId, projectId, fileId, number, blobId, size: input.blob.size, mime, authorId: actorId, createdAt: now })
+    await db.files.put({
+      id: fileId,
+      projectId,
+      name: existing?.name ?? name,
+      source: existing?.source ?? input.source,
+      mime,
+      headVersionId: versionId,
+      versionCount: number,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      updatedBy: actorId,
+    })
+    await logEvent(projectId, actorId, 'file.saved', existing ? `“${name}” ganhou a versão ${number}` : `“${name}” adicionado à pasta`)
+    return fileId
+  })
+}
+
+/** Makes an earlier version current again by adding it as a new version. History never shrinks. */
+export async function restoreFileVersion(versionId: string, actorId: string) {
+  const version = await db.fileVersions.get(versionId)
+  if (!version) throw new Error('Versão não encontrada.')
+  const file = await db.files.get(version.fileId)
+  if (!file) throw new Error('Arquivo não encontrado.')
+  await authorize(file.projectId, actorId, 'edit')
+  const now = Date.now()
+  const number = file.versionCount + 1
+  const id = uid('fv')
+  await db.transaction('rw', db.files, db.fileVersions, db.events, db.projects, async () => {
+    await db.fileVersions.add({ ...version, id, number, authorId: actorId, createdAt: now })
+    await db.files.update(file.id, { headVersionId: id, versionCount: number, mime: version.mime, updatedAt: now, updatedBy: actorId })
+    await logEvent(file.projectId, actorId, 'file.restored', `“${file.name}” voltou para a versão ${version.number}`)
+  })
+}
+
+/** Hides a file from the folder. Its versions stay, so nothing is lost by mistake. */
+export async function deleteFile(fileId: string, actorId: string) {
+  const file = await db.files.get(fileId)
+  if (!file) return
+  await authorize(file.projectId, actorId, 'edit')
+  await db.files.update(fileId, { deleted: true, updatedAt: Date.now(), updatedBy: actorId })
+  await logEvent(file.projectId, actorId, 'file.deleted', `“${file.name}” removido da pasta`)
 }
