@@ -61,7 +61,7 @@ function apiDev(): Plugin {
 }
 
 /** The domain written in index.html and in the SEO files of public/. */
-const SOURCE_SITE = 'https://story-board-work.vercel.app'
+const SOURCE_SITE = 'https://decupaai.vercel.app'
 
 /**
  * Points canonical links, Open Graph, robots.txt and sitemap.xml at the domain being built.

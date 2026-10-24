@@ -47,7 +47,7 @@ Duas pessoas, cada uma com seu agente, fazem push no mesmo `main`.
 
 ## Publicação
 
-- Vercel: projeto ligado a este repositório no GitHub, no ar em https://story-board-work.vercel.app. Cada push no `main` publica sozinho.
+- Vercel: projeto ligado a este repositório no GitHub, no ar em https://decupaai.vercel.app. Cada push no `main` publica sozinho.
 - Variáveis que o site precisa na Vercel: `OPENAI_API_KEY` para a IA e o Upstash (aba Storage) para a colaboração. Depois de mudar uma variável, faça um Redeploy.
 - SEO: `index.html` (metadados e dados estruturados), `public/guia/storyboard-com-ia.html`, `public/robots.txt` e `public/sitemap.xml` usam o domínio acima. No build da Vercel, o plugin `siteUrl` do `vite.config.ts` troca esse domínio pelo de produção do projeto (`VERCEL_PROJECT_PRODUCTION_URL`); `SITE_URL` força outro.
 - Chaves moram nas variáveis da Vercel ou no 1Password, sempre fora do git.

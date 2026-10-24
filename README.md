@@ -4,7 +4,7 @@ Planejador de cenas para criadores. O briefing vira até 6 cenas, cada uma com d
 
 O diferencial é a **edição conversacional e incremental**: escreva só o que quer mudar numa cena, ou edite o briefing, e a IA refaz apenas o que foi afetado. Cada mudança vira uma versão, com antes e depois, no estilo dos commits do GitHub.
 
-**Demo no ar:** https://story-board-work.vercel.app
+**Demo no ar:** https://decupaai.vercel.app
 
 <p align="center">
   <a href="docs/media/demo.mp4"><img src="docs/media/demo.gif" alt="Vídeo: o Decupa funcionando" width="49%"></a>
