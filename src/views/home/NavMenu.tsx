@@ -1,18 +1,36 @@
-import { CircleHelp, FolderClosed, House, Lightbulb, Plus, Settings, Users } from 'lucide-react'
-import { Menu, MenuItem } from '../../components/ui'
+import { CircleHelp, FolderClosed, Lightbulb, Plus, Settings, Users } from 'lucide-react'
+import { Menu, MenuItem, toast } from '../../components/ui'
 
 export const SECTION = { mine: 'meus-projetos', shared: 'compartilhados', examples: 'exemplos', composer: 'briefing' } as const
 
-/** Scrolls to a section of the home screen; a section that is not there (no projects yet) falls back to the briefing field. */
-function scrollToSection(id: string) {
+/**
+ * Rings the element a menu item jumped to. The whole home screen often fits the window, so a
+ * scroll alone may not move anything and the click would look ignored.
+ */
+function flash(el: HTMLElement) {
+  el.classList.remove('flash')
+  void el.offsetWidth // restarts the animation on a second click
+  el.classList.add('flash')
+  el.addEventListener('animationend', () => el.classList.remove('flash'), { once: true })
+}
+
+/** Scrolls to a section of the home screen. A section that is not there yet says why and falls back to the briefing field. */
+function scrollToSection(id: string, missing?: string) {
   const el = document.getElementById(id)
-  if (!el) return focusComposer()
+  if (!el) {
+    if (missing) toast(missing)
+    return focusComposer()
+  }
   el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
+  flash(el)
 }
 
 function focusComposer() {
-  scrollTo({ top: 0, behavior: 'smooth' })
-  document.querySelector<HTMLTextAreaElement>(`#${SECTION.composer} textarea`)?.focus({ preventScroll: true })
+  const composer = document.getElementById(SECTION.composer)
+  if (!composer) return
+  composer.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  composer.querySelector('textarea')?.focus({ preventScroll: true })
+  flash(composer)
 }
 
 /** The menu at the left of the logo: jumps to the sections of the home screen, settings and help. */
@@ -35,10 +53,7 @@ export function NavMenu({ onSettings, hasShared }: { onSettings: () => void; has
         const go = (fn: () => void) => () => (close(), fn())
         return (
           <nav aria-label="Navegação" className="flex flex-col">
-            <MenuItem icon={<House />} onClick={go(() => scrollTo({ top: 0, behavior: 'smooth' }))}>
-              Início
-            </MenuItem>
-            <MenuItem icon={<FolderClosed />} onClick={go(() => scrollToSection(SECTION.mine))}>
+            <MenuItem icon={<FolderClosed />} onClick={go(() => scrollToSection(SECTION.mine, 'Você ainda não tem projetos. Cole um briefing para criar o primeiro.'))}>
               Meus projetos
             </MenuItem>
             <MenuItem icon={<Plus />} onClick={go(focusComposer)}>
