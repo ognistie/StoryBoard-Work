@@ -1,7 +1,8 @@
 // Server-only key-value store behind the collaboration API (auth, projects, sync, files).
 // Production uses Upstash Redis over its REST API (plain fetch, no SDK). The Vercel
-// marketplace integration sets KV_REST_API_URL / KV_REST_API_TOKEN; a direct Upstash
-// database sets UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN. Either works.
+// marketplace integration sets KV_REST_API_URL / KV_REST_API_TOKEN, optionally behind a
+// custom prefix (STORAGE_KV_REST_API_URL); a direct Upstash database sets
+// UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN. Any of them works.
 // Local development without those variables falls back to an in-memory store.
 
 export type Command = (string | number)[]
@@ -185,12 +186,23 @@ export class MemoryKV implements KV {
 let shared: KV | null | undefined
 
 /** The configured store, or null in production without one (collaboration then stays off). */
+/** Finds a REST URL and its token with the same name. Unprefixed names win over prefixed ones. */
+export function upstashCredentials(env: Record<string, string | undefined>): { url: string; token: string } | null {
+  const urls = Object.keys(env)
+    .filter((k) => /(^|_)(KV_REST_API|UPSTASH_REDIS_REST)_URL$/.test(k) && env[k]?.trim())
+    .sort((a, b) => a.length - b.length)
+  for (const k of urls) {
+    const token = env[k.replace(/_URL$/, '_TOKEN')]?.trim()
+    if (token) return { url: env[k]!.trim(), token }
+  }
+  return null
+}
+
 export function getKV(): KV | null {
   if (shared !== undefined) return shared
   const env = process.env
-  const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL
-  const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN
-  if (url && token) shared = new UpstashKV(url, token)
+  const credentials = upstashCredentials(env)
+  if (credentials) shared = new UpstashKV(credentials.url, credentials.token)
   // A memory store on Vercel would be per instance and silently lose data, so it is local only.
   else shared = env.VERCEL ? null : new MemoryKV()
   return shared

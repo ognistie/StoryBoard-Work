@@ -1,6 +1,6 @@
 # Pesquisa: público do audiovisual no Brasil e busca orgânica
 
-Pesquisa feita em 24/10/2026 para orientar o SEO da Decupa (https://decupa-hackathon.vercel.app). O objetivo é aparecer quando profissionais e estudantes do audiovisual brasileiro procuram storyboard, decupagem, roteiro e IA.
+Pesquisa feita em 24/10/2026 para orientar o SEO da Decupa (https://story-board-work.vercel.app). O objetivo é aparecer quando profissionais e estudantes do audiovisual brasileiro procuram storyboard, decupagem, roteiro e IA.
 
 ## O que a pesquisa encontrou e o que não encontrou
 
@@ -43,4 +43,4 @@ Usados no `index.html` (título, descrição, dados estruturados) e na página `
 
 - Cadastrar o domínio no Google Search Console e enviar o `sitemap.xml`.
 - Medir volumes reais no Planejador de Palavras-chave e ajustar o guia aos termos com mais busca.
-- Com domínio próprio, trocar `decupa-hackathon.vercel.app` no `index.html`, no guia, no `robots.txt` e no `sitemap.xml`.
+- O build troca `story-board-work.vercel.app` pelo domínio de produção da Vercel no `index.html`, no guia, no `robots.txt` e no `sitemap.xml` (plugin `siteUrl` no `vite.config.ts`). Com domínio próprio, basta adicioná-lo na Vercel e publicar de novo.

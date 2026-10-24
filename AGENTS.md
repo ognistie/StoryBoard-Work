@@ -25,7 +25,7 @@ Produto, design (arquivo no Paper) e o projeto de exemplo da iugu: `CONTEXT.md`.
 ## Colaboração
 
 - Login por e-mail e senha, convites por e-mail ou link, projetos compartilhados, chat do projeto e pasta de arquivos. Código do servidor em `src/server/`, contrato em `src/lib/collab/contract.ts`, sincronização em `src/lib/collab/sync.ts`.
-- Armazenamento: Upstash Redis pela integração da Vercel (`KV_REST_API_URL` e `KV_REST_API_TOKEN`). Sem essas variáveis, o `bun run dev` guarda tudo em memória e a Vercel desliga a colaboração; o app continua funcionando só no navegador.
+- Armazenamento: Upstash Redis pela integração da Vercel (`KV_REST_API_URL` e `KV_REST_API_TOKEN`, com ou sem prefixo, como `STORAGE_KV_REST_API_URL`). Sem essas variáveis, o `bun run dev` guarda tudo em memória e a Vercel desliga a colaboração; o app continua funcionando só no navegador.
 - Convite por e-mail precisa de `RESEND_API_KEY` (e `INVITE_FROM_EMAIL`). Sem ela, o app mostra o link para copiar.
 - Os projetos de exemplo são de cada navegador (`example: true`); ao compartilhar, viram projeto da conta.
 - Na Vercel Hobby cabem 12 funções. Hoje são 10 em `api/`.
@@ -47,9 +47,9 @@ Duas pessoas, cada uma com seu agente, fazem push no mesmo `main`.
 
 ## Publicação
 
-- Vercel: projeto `andre-dezzy/decupa`, no ar em https://decupa-hackathon.vercel.app. Publique com `vercel deploy --prod`, na conta do André.
-- SEO: `index.html` (metadados e dados estruturados), `public/guia/storyboard-com-ia.html`, `public/robots.txt` e `public/sitemap.xml` usam o domínio acima. Mudou o domínio, mude nos quatro.
-- O repositório não está ligado à Vercel: push não publica.
+- Vercel: projeto ligado a este repositório no GitHub, no ar em https://story-board-work.vercel.app. Cada push no `main` publica sozinho.
+- Variáveis que o site precisa na Vercel: `OPENAI_API_KEY` para a IA e o Upstash (aba Storage) para a colaboração. Depois de mudar uma variável, faça um Redeploy.
+- SEO: `index.html` (metadados e dados estruturados), `public/guia/storyboard-com-ia.html`, `public/robots.txt` e `public/sitemap.xml` usam o domínio acima. No build da Vercel, o plugin `siteUrl` do `vite.config.ts` troca esse domínio pelo de produção do projeto (`VERCEL_PROJECT_PRODUCTION_URL`); `SITE_URL` força outro.
 - Chaves moram nas variáveis da Vercel ou no 1Password, sempre fora do git.
 
 ## Produto e visual

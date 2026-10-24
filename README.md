@@ -4,7 +4,7 @@ Planejador de cenas para criadores. O briefing vira até 6 cenas, cada uma com d
 
 O diferencial é a **edição conversacional e incremental**: escreva só o que quer mudar numa cena, ou edite o briefing, e a IA refaz apenas o que foi afetado. Cada mudança vira uma versão, com antes e depois, no estilo dos commits do GitHub.
 
-**Demo no ar:** https://decupa-hackathon.vercel.app
+**Demo no ar:** https://story-board-work.vercel.app
 
 <p align="center">
   <a href="docs/media/demo.mp4"><img src="docs/media/demo.gif" alt="Vídeo: o Decupa funcionando" width="49%"></a>
@@ -30,7 +30,7 @@ O `bun run dev` serve as funções de `api/` pelo próprio Vite (plugin em `vite
 |---|---|---|
 | `OPENAI_API_KEY` | IA (cenas, revisões, chat com @ia) | a IA avisa que está sem chave |
 | `OPENAI_TEXT_MODEL` | troca o modelo de texto | `gpt-6-luna` |
-| `KV_REST_API_URL` e `KV_REST_API_TOKEN` (ou `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`) | contas, projetos compartilhados, chat e pasta do time | local: memória (some ao reiniciar); na Vercel: colaboração desligada |
+| `KV_REST_API_URL` e `KV_REST_API_TOKEN` (com ou sem prefixo, ou `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`) | contas, projetos compartilhados, chat e pasta do time | local: memória (some ao reiniciar); na Vercel: colaboração desligada |
 | `RESEND_API_KEY` e `INVITE_FROM_EMAIL` | manda o convite por e-mail | o app mostra o link do convite para copiar |
 
 > Se o `registry.npmjs.org` estiver bloqueado na sua rede, o `.npmrc` do projeto já aponta para o espelho oficial `registry.yarnpkg.com`.

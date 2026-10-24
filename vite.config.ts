@@ -1,5 +1,7 @@
 /// <reference types="vitest" />
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { join, resolve } from 'node:path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -58,8 +60,39 @@ function apiDev(): Plugin {
   }
 }
 
+/** The domain written in index.html and in the SEO files of public/. */
+const SOURCE_SITE = 'https://story-board-work.vercel.app'
+
+/**
+ * Points canonical links, Open Graph, robots.txt and sitemap.xml at the domain being built.
+ * On Vercel that is the project's production domain, so renaming the project or adding a
+ * domain needs no code change. SITE_URL overrides it.
+ */
+function siteUrl(): Plugin {
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  const site = (process.env.SITE_URL || (production ? `https://${production}` : SOURCE_SITE)).replace(/\/+$/, '')
+  let outDir = 'dist'
+  return {
+    name: 'decupa-site-url',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir)
+    },
+    transformIndexHtml: (html) => html.replaceAll(SOURCE_SITE, site),
+    closeBundle() {
+      if (site === SOURCE_SITE) return
+      for (const entry of readdirSync(outDir, { recursive: true, encoding: 'utf8' })) {
+        if (!/\.(html|txt|xml)$/.test(entry)) continue
+        const file = join(outDir, entry)
+        const text = readFileSync(file, 'utf8')
+        if (text.includes(SOURCE_SITE)) writeFileSync(file, text.replaceAll(SOURCE_SITE, site))
+      }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), apiDev()],
+  plugins: [react(), tailwindcss(), apiDev(), siteUrl()],
   server: { watch: { ignored: ['**/.vercel/**'] } },
   test: {
     environment: 'node',
