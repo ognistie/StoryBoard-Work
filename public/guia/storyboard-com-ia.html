@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Storyboard com IA: como fazer storyboard, decupagem e roteiro técnico | Decupa</title>
+    <meta
+      name="description"
+      content="Guia prático de storyboard para vídeo: o que é, como fazer em 5 passos, decupagem e roteiro técnico, tipos de plano, movimentos de câmera, roteiro para Reels e TikTok e como usar IA no audiovisual."
+    />
+    <link rel="canonical" href="https://decupa-hackathon.vercel.app/guia/storyboard-com-ia.html" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:type" content="article" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="Storyboard com IA: guia de storyboard, decupagem e roteiro técnico" />
+    <meta property="og:description" content="Como fazer storyboard, decupagem e roteiro para vídeo, com planos, movimentos de câmera e IA." />
+    <meta property="og:url" content="https://decupa-hackathon.vercel.app/guia/storyboard-com-ia.html" />
+    <meta property="og:image" content="https://decupa-hackathon.vercel.app/demo/cafe-1.webp" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Instrument+Serif&display=swap" rel="stylesheet" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "O que é storyboard?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Storyboard é a sequência de quadros desenhados que mostra cada plano de um vídeo antes da filmagem: o que aparece, o enquadramento, o movimento de câmera, a fala e a duração. Serve para alinhar direção, produção e cliente." }
+          },
+          {
+            "@type": "Question",
+            "name": "Qual a diferença entre storyboard e decupagem?",
+            "acceptedAnswer": { "@type": "Answer", "text": "A decupagem divide o roteiro em planos e cortes e descreve cada um por escrito (roteiro técnico ou lista de planos). O storyboard mostra esses planos em imagens. Na prática, os dois andam juntos." }
+          },
+          {
+            "@type": "Question",
+            "name": "Preciso saber desenhar para fazer um storyboard?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Não. Bonecos de palito e formas simples bastam, desde que o enquadramento e a ação fiquem claros. Ferramentas como a Decupa desenham um esboço de cada cena a partir da descrição." }
+          },
+          {
+            "@type": "Question",
+            "name": "Como a IA ajuda a fazer storyboard?",
+            "acceptedAnswer": { "@type": "Answer", "text": "A IA transforma o briefing em cenas com descrição, fala, plano, movimento de câmera e duração, refaz uma cena a pedido e revisa o plano quando o briefing muda. A decisão criativa continua com a equipe." }
+          },
+          {
+            "@type": "Question",
+            "name": "Quantas cenas deve ter um Reels de 30 segundos?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Entre 4 e 6 cenas costuma funcionar: um gancho de 2 a 4 segundos, o problema, a virada, a solução e a chamada final. O que importa é o ritmo, não o número exato." }
+          }
+        ]
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #fafafa;
+        --surface: #ffffff;
+        --surface-2: #f4f4f5;
+        --fg: #18181b;
+        --fg-2: #3f3f46;
+        --muted: #71717b;
+        --line: #e4e4e7;
+        --accent: #0071e3;
+        --link: #0066cc;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+      a { color: var(--link); }
+      header, main, footer { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+      header { display: flex; align-items: center; justify-content: space-between; height: 72px; }
+      .logo { font-family: "Instrument Serif", Georgia, serif; font-size: 28px; color: var(--fg); text-decoration: none; }
+      .cta { display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 500; font-size: 15px; text-decoration: none; }
+      .cta:hover { background: #0077ed; }
+      h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.12; font-weight: 500; letter-spacing: -0.035em; margin: 40px 0 12px; }
+      .lead { font-size: 19px; color: var(--muted); margin: 0 0 28px; }
+      h2 { font-size: 26px; line-height: 1.25; font-weight: 500; letter-spacing: -0.025em; margin: 48px 0 12px; }
+      h3 { font-size: 18px; font-weight: 500; margin: 24px 0 6px; }
+      p, li { color: var(--fg-2); }
+      ol, ul { padding-left: 22px; }
+      li { margin: 6px 0; }
+      figure { margin: 24px 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      figure img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+      figcaption { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+      table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 12px 0; }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+      th { font-weight: 500; color: var(--muted); font-size: 13px; }
+      .card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; margin: 32px 0; }
+      .card p { margin: 0 0 14px; }
+      details { border-bottom: 1px solid var(--line); padding: 14px 0; }
+      summary { cursor: pointer; font-weight: 500; color: var(--fg); }
+      details p { margin: 8px 0 0; }
+      footer { padding: 48px 20px; color: var(--muted); font-size: 14px; }
+      @media (max-width: 560px) { figure { grid-template-columns: 1fr 1fr; } figure img:nth-child(3) { display: none; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="logo" href="/">Decupa</a>
+      <a class="cta" href="/">Criar storyboard</a>
+    </header>
+
+    <main>
+      <article>
+        <h1>Storyboard com IA: do briefing à decupagem</h1>
+        <p class="lead">Um guia direto para quem planeja vídeo: o que é storyboard, como fazer, como decupar o roteiro, que plano e movimento de câmera escolher, e onde a inteligência artificial ajuda de verdade.</p>
+
+        <figure>
+          <img src="/demo/iugu-1.webp" alt="Storyboard: plano detalhe de uma mão escrevendo uma fórmula" loading="lazy" width="400" height="400" />
+          <img src="/demo/cafe-1.webp" alt="Storyboard: plano detalhe de mãos moendo café, com seta de movimento" loading="lazy" width="400" height="400" />
+          <img src="/demo/studio-1.webp" alt="Storyboard: plano geral de um estúdio de pilates com travelling" loading="lazy" width="400" height="400" />
+          <figcaption>Quadros de storyboard dos projetos de exemplo da Decupa.</figcaption>
+        </figure>
+
+        <h2>O que é storyboard</h2>
+        <p>
+          Storyboard é a sequência de quadros que mostra cada plano do vídeo antes da filmagem. Cada quadro diz o que aparece, o enquadramento, o movimento de câmera, a fala ou locução e quanto tempo dura. É a ferramenta que alinha direção, fotografia, produção e cliente: todo mundo vê o mesmo filme antes de gastar uma diária.
+        </p>
+        <p>Variações comuns: <strong>shooting board</strong> (feito para o set, com detalhes técnicos), <strong>animatic</strong> (os quadros montados no tempo, com som) e <strong>storyboard publicitário</strong> (para aprovar um comercial com a agência e o anunciante).</p>
+
+        <h2>Como fazer um storyboard em 5 passos</h2>
+        <ol>
+          <li><strong>Parta do briefing.</strong> Objetivo, público, formato (Reels 9:16, feed 1:1, YouTube 16:9), duração e o que não pode aparecer.</li>
+          <li><strong>Quebre em cenas.</strong> Num vídeo curto: gancho, problema, virada, solução e chamada final. Some as durações e confira o total.</li>
+          <li><strong>Decupe cada cena em planos.</strong> Escolha o enquadramento e o movimento que contam aquela ação (veja a tabela abaixo).</li>
+          <li><strong>Desenhe simples.</strong> Bonecos e formas bastam. Setas indicam movimento de câmera ou de personagem.</li>
+          <li><strong>Revise com o time e versione.</strong> Cada mudança do cliente vira uma nova versão, para ninguém perder o que já foi aprovado.</li>
+        </ol>
+
+        <div class="card">
+          <p>Na <strong>Decupa</strong> você cola o briefing e recebe as cenas com descrição, fala, plano, movimento de câmera, duração e um esboço desenhado. Depois edita, reordena, conversa com o time no chat do projeto e exporta roteiro, decupagem em CSV e PDF.</p>
+          <a class="cta" href="/">Abrir a Decupa</a>
+        </div>
+
+        <h2>Decupagem e roteiro técnico</h2>
+        <p>
+          <strong>Decupagem</strong> (do francês <em>découper</em>, recortar) é dividir o roteiro em planos e cortes. O resultado é o <strong>roteiro técnico</strong> ou a <strong>lista de planos</strong> (shot list): para cada plano, número da cena, enquadramento, movimento, ângulo, duração, personagens, locação, luz, ação e diálogo. É dela que saem a ordem do dia, o mapa de filmagem e o orçamento.
+        </p>
+        <p>O storyboard é a decupagem em imagem. Fazer os dois juntos evita o erro clássico: um plano lindo no papel que não cabe no tempo do vídeo.</p>
+
+        <h2>Tipos de plano e movimentos de câmera</h2>
+        <table>
+          <thead>
+            <tr><th>Plano</th><th>Mostra</th><th>Use para</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Plano geral</td><td>O ambiente inteiro</td><td>Situar onde a história acontece</td></tr>
+            <tr><td>Plano de conjunto</td><td>O grupo e o espaço ao redor</td><td>Relação entre pessoas</td></tr>
+            <tr><td>Plano americano</td><td>Do joelho para cima</td><td>Ação com corpo e expressão</td></tr>
+            <tr><td>Plano médio</td><td>Da cintura para cima</td><td>Diálogo, apresentação</td></tr>
+            <tr><td>Close</td><td>Rosto</td><td>Emoção, reação</td></tr>
+            <tr><td>Plano detalhe</td><td>Um objeto ou parte do corpo</td><td>Produto, gesto, informação</td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead>
+            <tr><th>Movimento</th><th>Como é</th><th>Efeito</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Câmera fixa</td><td>Não se move</td><td>Calma, foco na ação</td></tr>
+            <tr><td>Panorâmica (pan)</td><td>Gira no próprio eixo, na horizontal</td><td>Revelar o espaço</td></tr>
+            <tr><td>Travelling</td><td>A câmera se desloca acompanhando</td><td>Seguir o personagem</td></tr>
+            <tr><td>Push-in</td><td>Aproximação lenta</td><td>Tensão, ênfase</td></tr>
+            <tr><td>Zoom out</td><td>Abre o quadro pela lente</td><td>Revelar contexto</td></tr>
+            <tr><td>Câmera na mão</td><td>Operada sem tripé</td><td>Urgência, documental</td></tr>
+            <tr><td>Time-lapse</td><td>Tempo acelerado</td><td>Passagem do tempo</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Roteiro para Reels, TikTok e YouTube Shorts</h2>
+        <ul>
+          <li><strong>Gancho nos primeiros 2 a 3 segundos:</strong> imagem forte ou pergunta. Plano detalhe e push-in prendem bem.</li>
+          <li><strong>Uma ideia por cena:</strong> de 4 a 6 cenas num vídeo de 30 segundos.</li>
+          <li><strong>Texto na tela:</strong> boa parte assiste sem som. Planeje legendas e letreiros no storyboard.</li>
+          <li><strong>Formato vertical 9:16:</strong> enquadre com o assunto no centro e espaço para a interface do app.</li>
+          <li><strong>Chamada final clara:</strong> marca, mensagem e ação em uma cena só.</li>
+        </ul>
+
+        <h2>IA no audiovisual: onde ajuda</h2>
+        <p>
+          Produtoras brasileiras já usam IA generativa na pré-produção: referências visuais para storyboard, tratamentos e books, e leitura e decupagem de roteiros. Ferramentas de storyboard com IA aceleram o primeiro rascunho, mas o resultado depende de quem dirige.
+        </p>
+        <ul>
+          <li><strong>Do briefing às cenas:</strong> a IA propõe a quebra em cenas, com plano, movimento, fala e duração somando o tempo pedido.</li>
+          <li><strong>Revisão rápida:</strong> “mais curta”, “só o diálogo”, “mais impacto” refazem uma cena e guardam a versão anterior.</li>
+          <li><strong>Briefing mudou:</strong> a IA compara o briefing antigo com o novo e refaz só as cenas afetadas, explicando o motivo.</li>
+          <li><strong>Assistente no chat do projeto:</strong> perguntas como “a cena 2 está longa para um Reels?” recebem resposta com sugestões aplicáveis.</li>
+        </ul>
+
+        <h2>Perguntas frequentes</h2>
+        <details>
+          <summary>Qual a diferença entre storyboard e decupagem?</summary>
+          <p>A decupagem descreve os planos por escrito (roteiro técnico, shot list). O storyboard mostra esses planos em imagens. Os dois andam juntos.</p>
+        </details>
+        <details>
+          <summary>Preciso saber desenhar?</summary>
+          <p>Não. Formas simples resolvem. A Decupa desenha um esboço de cada cena a partir da descrição.</p>
+        </details>
+        <details>
+          <summary>Quantas cenas deve ter um Reels de 30 segundos?</summary>
+          <p>Entre 4 e 6: gancho, problema, virada, solução e chamada final. O ritmo importa mais que o número exato.</p>
+        </details>
+        <details>
+          <summary>Dá para trabalhar em equipe e com o cliente?</summary>
+          <p>Sim. Na Decupa você convida pessoas por e-mail, com papéis de Produção, Edição, Cliente ou Leitura. Todos veem as mesmas cenas, versões, chat e pasta de arquivos.</p>
+        </details>
+        <details>
+          <summary>Em que formatos exporto o storyboard?</summary>
+          <p>PDF para apresentar, roteiro em Markdown, decupagem em CSV (abre no Excel e no Google Planilhas) e o pacote completo do projeto.</p>
+        </details>
+      </article>
+    </main>
+
+    <footer>
+      <a class="logo" href="/">Decupa</a>
+      <p>Planejador de cenas para criadores: do briefing ao storyboard, com IA.</p>
+    </footer>
+  </body>
+</html>

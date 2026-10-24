@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://decupa-hackathon.vercel.app/sitemap.xml
