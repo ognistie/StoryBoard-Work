@@ -71,3 +71,43 @@ export const applyBriefingResponse = z.object({
     }),
   ),
 })
+
+/**
+ * Default text model. gpt-6-luna is the cheapest current OpenAI model (USD 0.10 in / 0.50 out per
+ * million tokens, Oct 2026) and handles these short structured tasks. OPENAI_TEXT_MODEL overrides it.
+ */
+export const DEFAULT_TEXT_MODEL = 'gpt-6-luna'
+
+const sceneBriefSchema = z.object({
+  number: z.int(),
+  title: z.string(),
+  description: z.string(),
+  dialogue: z.string(),
+  duration: z.number(),
+  shot: z.string(),
+  movement: z.string(),
+})
+
+export const assistantRequest = z.object({
+  projectName: z.string().max(200),
+  format: z.string().max(20),
+  briefing: z.string().max(8000),
+  scenes: z.array(sceneBriefSchema).max(12),
+  /** Recent chat, oldest first, so the answer follows the conversation. */
+  history: z.array(z.object({ author: z.string().max(80), text: z.string().max(2000) })).max(12),
+  question: z.string().min(1).max(2000),
+})
+export const assistantResponse = z.object({
+  answer: z.string().describe('Resposta curta em PT-BR, no máximo 5 frases ou uma lista curta.'),
+  suggestions: z
+    .array(
+      z.object({
+        sceneNumber: z.int().describe('Número da cena (1 = primeira).'),
+        instruction: z.string().describe('Pedido curto e direto para refazer a cena, em PT-BR. Ex.: "Trocar para close na mão".'),
+      }),
+    )
+    .max(3)
+    .describe('Mudanças concretas em cenas que a equipe pode aplicar com um clique. Vazio quando a pergunta não pede mudança.'),
+})
+
+export const healthResponse = z.object({ ai: z.boolean(), textModel: z.string(), collab: z.boolean() })
