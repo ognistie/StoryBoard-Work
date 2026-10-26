@@ -1,5 +1,5 @@
 import { canWrite, MAX_BLOB_BYTES, NOT_MEMBER, type Change, type Invite, type Member, type PublicUser, type RemoteProject, type ShareRole } from '../lib/collab/contract.js'
-import { getUser, getUsers } from './auth.js'
+import { getUser, getUsers, hasVerifiedEmail } from './auth.js'
 import { HttpError, randomToken } from './http.js'
 import { one, parseJSON, type KV } from './kv.js'
 
@@ -199,6 +199,9 @@ export async function createInvite(kv: KV, user: PublicUser, input: { projectId:
 
 /** Pending invites sent to the user's email. Expired ones drop out of the list. */
 export async function listInvites(kv: KV, user: PublicUser): Promise<Invite[]> {
+  // An unverified password signup must not reveal somebody else's secret invitation links.
+  // These accounts join through the link delivered by the owner/email instead.
+  if (!(await hasVerifiedEmail(kv, user.id))) return []
   const tokens = await one<string[]>(kv, ['SMEMBERS', k.emailInvites(user.email)])
   if (!tokens.length) return []
   const rows = await kv.pipeline(tokens.map((t) => ['GET', k.invite(t)]))
@@ -209,13 +212,16 @@ export async function listInvites(kv: KV, user: PublicUser): Promise<Invite[]> {
 }
 
 /**
- * Joins the project of an invite. The link works for whoever is signed in, not only the invited
- * email: a link shared in a team chat should just work. HSETNX never lowers an existing role.
+ * Invites belong to the addressed email; forwarding a link must not grant another account access.
+ * HSETNX never lowers an existing role.
  */
 export async function acceptInvite(kv: KV, user: PublicUser, token: string): Promise<RemoteProject> {
   const inv = parseJSON<StoredInvite>(await one(kv, ['GET', k.invite(token)]))
   if (!inv) throw new HttpError(404, 'Este convite expirou ou já foi usado.')
+  if (inv.email !== user.email) throw new HttpError(403, 'Entre com o e-mail que recebeu este convite.')
   if (!(await loadProject(kv, inv.projectId))) throw new HttpError(404, 'O projeto deste convite não existe mais.')
+  const issuer = await access(kv, inv.projectId, inv.invitedBy)
+  assertManager(issuer.project, inv.invitedBy)
   await kv.pipeline([
     ['HSETNX', k.members(inv.projectId), user.id, `${inv.role}:${Date.now()}`],
     ['SADD', k.userProjects(user.id), inv.projectId],
@@ -262,8 +268,12 @@ function validRecord(projectId: string, c: Change): boolean {
 export async function push(kv: KV, user: PublicUser, projectId: string, changes: Change[]): Promise<{ seq: number; rejected: string[] }> {
   const { project, role } = await access(kv, projectId, user.id)
   const rejected: string[] = []
-  const accepted = changes.filter((c) => {
-    const ok = canWrite(role, c.table) && validRecord(projectId, c) && !(c.table === 'projects' && !c.data)
+  const previous = role === 'client' ? await kv.pipeline(changes.map((c) => ['HGET', k.records(projectId), `${c.table}:${c.id}`])) : []
+  const accepted = changes.filter((c, index) => {
+    const owns = (data: Record<string, unknown> | null | undefined) => !!data && (data.authorId === user.id || (c.table === 'messages' && data.authorId === 'ai' && data.askedBy === user.id))
+    const prior = parseJSON<StoredRecord>(previous[index])
+    const ownsComment = role !== 'client' || ((!prior?.data || owns(prior.data)) && (c.data ? owns(c.data) : owns(prior?.data)))
+    const ok = canWrite(role, c.table) && validRecord(projectId, c) && ownsComment && !(c.table === 'projects' && !c.data)
     if (!ok) rejected.push(`${c.table}:${c.id}`)
     return ok
   })

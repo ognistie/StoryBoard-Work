@@ -83,7 +83,7 @@ function InviteForm() {
       {sent && (
         <div className="flex flex-col gap-2 rounded-[14px] border border-line px-3.5 py-3">
           <p className="text-[13px] leading-[18px] text-fg-2">
-            {sent.emailed ? `Convite enviado para ${sent.email}.` : `Convite criado para ${sent.email}.`} Ao entrar com esse e-mail, a pessoa vê o convite em “Convites”. Você também pode mandar o link:
+            {sent.emailed ? `Convite enviado para ${sent.email}.` : `Convite criado para ${sent.email}.`} A pessoa deve abrir o link e entrar com esse e-mail. Você pode copiar o convite abaixo:
           </p>
           <CopyLink link={sent.link} />
         </div>

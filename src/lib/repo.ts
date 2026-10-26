@@ -28,7 +28,7 @@ import type {
 
 export class StaleRevisionError extends Error {
   constructor() {
-    super('Este quadro recebeu uma nova versão enquanto a IA trabalhava.')
+    super('O projeto mudou enquanto a IA trabalhava. Revise a versão atual e tente novamente.')
     this.name = 'StaleRevisionError'
   }
 }
@@ -307,14 +307,16 @@ export async function createNote(projectId: string, actorId: string, at: { x: nu
 export async function updateNote(noteId: string, actorId: string, patch: Partial<Pick<Note, 'text' | 'x' | 'y'>>) {
   const note = await db.notes.get(noteId)
   if (!note) return
-  await authorize(note.projectId, actorId, 'comment')
+  const { role } = await authorize(note.projectId, actorId, 'comment')
+  if (role === 'client' && note.authorId !== actorId) throw new Error('Você só pode editar suas próprias notas.')
   await db.notes.update(noteId, { ...patch, updatedAt: Date.now() })
 }
 
 export async function deleteNote(noteId: string, actorId: string) {
   const note = await db.notes.get(noteId)
   if (!note) return
-  await authorize(note.projectId, actorId, 'comment')
+  const { role } = await authorize(note.projectId, actorId, 'comment')
+  if (role === 'client' && note.authorId !== actorId) throw new Error('Você só pode remover suas próprias notas.')
   await db.notes.delete(noteId)
 }
 

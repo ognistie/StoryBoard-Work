@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../lib/db'
-import { commitFrame, createFrame, createNote, createProject, createScene, putImage, restoreRevision, updateFrame } from '../lib/repo'
+import { commitFrame, createFrame, createNote, createProject, createScene, deleteNote, putImage, restoreRevision, updateFrame, updateNote } from '../lib/repo'
 import { PermissionError } from '../lib/session'
 
 const PRODUCER = 'u_marina'
@@ -54,6 +54,15 @@ describe('revisions', () => {
 })
 
 describe('permissions', () => {
+  it('clients may change their own notes but not those of teammates', async () => {
+    const { projectId } = await setup()
+    const own = await createNote(projectId, CLIENT, { x: 0, y: 0 })
+    const teammate = await createNote(projectId, EDITOR, { x: 0, y: 0 })
+    await expect(updateNote(own, CLIENT, { text: 'Minha nota' })).resolves.toBeUndefined()
+    await expect(updateNote(teammate, CLIENT, { text: 'Alterada' })).rejects.toThrow(/próprias/)
+    await expect(deleteNote(teammate, CLIENT)).rejects.toThrow(/próprias/)
+    expect(await db.notes.get(teammate)).toBeTruthy()
+  })
   it('blocks clients from editing and outsiders from writing notes', async () => {
     const { projectId, frameId } = await setup()
     await expect(updateFrame(frameId, CLIENT, { title: 'x' })).rejects.toBeInstanceOf(PermissionError)

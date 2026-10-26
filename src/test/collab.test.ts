@@ -13,7 +13,7 @@ import { addFile, createFrame, createProject, createScene, putImage, sendMessage
 import { GUEST_ID, roleIn } from '../lib/session'
 import { MemoryKV, setKV } from '../server/kv'
 import * as server from '../server/projects'
-import { signup } from '../server/auth'
+import { googleAccount, signup } from '../server/auth'
 
 // The API routes run in-process: fetch is routed to their handlers, with a cookie jar per "browser".
 
@@ -93,6 +93,28 @@ describe('auth', () => {
 })
 
 describe('sharing and sync', () => {
+  it('only reveals pending invitation links after the email was verified', async () => {
+    const owner = await signup(kv, { email: 'owner@example.test', name: 'Owner', password: 'segredo123' })
+    const verified = await googleAccount(kv, { subject: 'google-verified', email: 'verified@example.test', name: 'Verified' })
+    await server.createProject(kv, owner, { id: 'prj_verified', name: 'QA' })
+    const invite = await server.createInvite(kv, owner, { projectId: 'prj_verified', email: verified.email, role: 'editor' })
+    expect((await server.listInvites(kv, verified)).map((i) => i.token)).toEqual([invite.token])
+  })
+  it('binds an invite to its recipient, rejects reuse and revokes removed members', async () => {
+    const ana = await signup(kv, { email: 'ana@example.test', name: 'Ana', password: 'segredo123' })
+    const bia = await signup(kv, { email: 'bia@example.test', name: 'Bia', password: 'segredo123' })
+    const other = await signup(kv, { email: 'other@example.test', name: 'Outra', password: 'segredo123' })
+    await server.createProject(kv, ana, { id: 'prj_invite_qa', name: 'QA' })
+    const invite = await server.createInvite(kv, ana, { projectId: 'prj_invite_qa', email: bia.email, role: 'viewer' })
+    await expect(server.acceptInvite(kv, other, invite.token)).rejects.toMatchObject({ status: 403 })
+    await expect(server.pull(kv, other, 'prj_invite_qa', 0)).rejects.toMatchObject({ status: 404 })
+    await server.acceptInvite(kv, bia, invite.token)
+    await expect(server.acceptInvite(kv, bia, invite.token)).rejects.toMatchObject({ status: 404 })
+    expect((await server.push(kv, bia, 'prj_invite_qa', [{ table: 'messages', id: 'msg_fake', data: { id: 'msg_fake', projectId: 'prj_invite_qa', text: 'no' } }])).rejected).toEqual(['messages:msg_fake'])
+    await server.removeMember(kv, ana, { projectId: 'prj_invite_qa', userId: bia.id })
+    await expect(server.pull(kv, bia, 'prj_invite_qa', 0)).rejects.toMatchObject({ status: 404 })
+  })
+
   it('uploads a shared project with its images, and a teammate who accepts the invite pulls it', async () => {
     const ana = (await signIn({ mode: 'signup', email: 'ana@exemplo.com', password: 'segredo123', name: 'Ana' }))!
     const { projectId, imageId } = await localProject(ana.id)
@@ -111,7 +133,8 @@ describe('sharing and sync', () => {
     jar = ''
     const bruno = (await signIn({ mode: 'signup', email: 'bruno@exemplo.com', password: 'segredo123', name: 'Bruno' }))!
     const listed = (await (await routedFetch('/api/projects')).json()) as { invites: { token: string }[] }
-    expect(listed.invites.map((i) => i.token)).toEqual([invite.token])
+    // Password signup does not prove email ownership; use the secret link received.
+    expect(listed.invites).toEqual([])
     await routedFetch('/api/invites', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'accept', token: invite.token }) })
 
     await pull(projectId)
@@ -164,6 +187,13 @@ describe('sharing and sync', () => {
       { table: 'messages', id: 'msg_2', data: { id: 'msg_2', projectId: 'prj_other', authorId: caio.id, text: 'x', createdAt: 1 } },
     ])
     expect(res.rejected).toEqual(['frames:frm_1', 'messages:msg_2'])
+    await server.push(kv, ana, 'prj_shared', [{ table: 'messages', id: 'msg_owner', data: { id: 'msg_owner', projectId: 'prj_shared', authorId: ana.id, text: 'Original', createdAt: 1 } }])
+    const spoofed = await server.push(kv, caio, 'prj_shared', [
+      { table: 'messages', id: 'msg_fake', data: { id: 'msg_fake', projectId: 'prj_shared', authorId: ana.id, text: 'Falsa', createdAt: 1 } },
+      { table: 'messages', id: 'msg_owner', data: { id: 'msg_owner', projectId: 'prj_shared', authorId: caio.id, text: 'Tomada', createdAt: 1 } },
+      { table: 'messages', id: 'msg_owner', data: null },
+    ])
+    expect(spoofed.rejected).toEqual(['messages:msg_fake', 'messages:msg_owner', 'messages:msg_owner'])
 
     const outsider = await signup(kv, { email: 'x@exemplo.com', name: 'X', password: 'segredo123' })
     await expect(server.pull(kv, outsider, 'prj_shared', 0)).rejects.toThrow(NOT_MEMBER)
