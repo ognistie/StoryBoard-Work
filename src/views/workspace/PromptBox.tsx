@@ -83,7 +83,7 @@ export function PromptBox({ compact = false }: { compact?: boolean }) {
       }}
       className={cx(
         'glass flex cursor-text flex-col !shadow-[inset_0_1px_0_#FFFFFFE6,inset_0_-1px_0_#FFFFFF40,0_0_0_1px_#0000000F,0_8px_32px_#0000001A]',
-        compact ? 'gap-3 rounded-[24px] pt-3.5 pr-3 pb-3 pl-4' : 'gap-[18px] rounded-[26px] pt-5 pr-4 pb-4 pl-6',
+        compact ? 'gap-3 rounded-[24px] pt-3.5 pr-3 pb-3 pl-4' : 'gap-[18px] rounded-[26px] pt-5 pr-4 pb-4 pl-6 [@media(max-height:820px)]:gap-2 [@media(max-height:820px)]:pt-3 [@media(max-height:820px)]:pb-3',
       )}
     >
       {/* Fixed height, so the box keeps its size with or without the scene chip. */}

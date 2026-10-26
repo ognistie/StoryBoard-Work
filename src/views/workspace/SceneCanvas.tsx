@@ -60,7 +60,8 @@ function breakpointOf(width: number): Breakpoint {
 
 function defaultViewport(bp: Breakpoint): Viewport {
   const { zoom, briefing } = VIEW[bp]
-  return { zoom, x: briefing.x - BRIEFING_AT.x * zoom, y: briefing.y - BRIEFING_AT.y * zoom }
+  const top = bp === 'desktop' && window.innerHeight <= 820 ? 16 : briefing.y
+  return { zoom, x: briefing.x - BRIEFING_AT.x * zoom, y: top - BRIEFING_AT.y * zoom }
 }
 
 /** A viewport the user panned or zoomed to, per project. Survives the canvas remounting when the layout changes size. */

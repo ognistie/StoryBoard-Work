@@ -328,7 +328,7 @@ function DesktopLayout({ onPresent, onSettings }: { onPresent: () => void; onSet
       </div>
 
       {/* Centred on the whole screen, and never under the inspector: 32 margin + 350 panel + 16 gap on each side. */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2" style={{ width: 'min(620px, calc(100% - 796px))' }}>
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 [@media(max-height:820px)]:bottom-4" style={{ width: 'min(620px, calc(100% - 796px))' }}>
         <PromptBox />
       </div>
 
