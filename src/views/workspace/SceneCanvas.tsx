@@ -15,6 +15,7 @@ import {
 import '@xyflow/react/dist/base.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toastError } from '../../components/ui'
+import { can } from '../../lib/session'
 import { reorderFrames, updateNote } from '../../lib/repo'
 import { useWD } from './context'
 import { BriefingNode, type BriefingNodeType } from './nodes/BriefingNode'
@@ -121,7 +122,7 @@ interface SceneDrag {
 }
 
 function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
-  const { project, ordered, revisions, briefing, notes, userId } = useWD()
+  const { project, ordered, revisions, briefing, notes, userId, role } = useWD()
   const { selectedId, widths } = useWS()
 
   return useMemo(() => {
@@ -139,7 +140,7 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
     const selectedIndex = row.findIndex((f) => f.id === selectedId)
     let x = ROW_X
     const scenes: SceneNodeType[] = row.map((frame, i) => {
-      const width = widths[frame.id] ?? DEFAULT_CARD_WIDTH[frame.aspect ?? project.aspect]
+      const width = Math.max(280, widths[frame.id] ?? DEFAULT_CARD_WIDTH[frame.aspect ?? project.aspect])
       const node: SceneNodeType = {
         id: frame.id,
         type: 'scene',
@@ -183,7 +184,7 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
       },
     }
 
-    const noteNodes: NoteNodeType[] = notes.map((note) => ({ id: NOTE_ID + note.id, type: 'note', position: { x: note.x, y: note.y }, selectable: false, data: { note, userId } }))
+    const noteNodes: NoteNodeType[] = notes.map((note) => ({ id: NOTE_ID + note.id, type: 'note', draggable: can(role, 'comment') && (role !== 'client' || note.authorId === userId), position: { x: note.x, y: note.y }, selectable: false, data: { note, userId } }))
 
     const link = { stroke: '#D4D4D8', strokeWidth: 1.5 }
     const edges: Edge[] = row.slice(1).map((frame, i) => {
@@ -195,7 +196,7 @@ function useLayout(briefingAt: XYPosition, drag: SceneDrag | undefined) {
       edges.unshift({ id: 'briefing->row', source: BRIEFING_ID, target: row[0].id, targetHandle: 'brief', type: 'straight', focusable: false, style: { ...link, strokeDasharray: '3 4', strokeLinecap: 'round' } })
 
     return { nodes: [brief, ...scenes, ...noteNodes] as CanvasNode[], edges }
-  }, [project, ordered, revisions, briefing, notes, userId, selectedId, widths, briefingAt, drag])
+  }, [project, ordered, revisions, briefing, notes, userId, role, selectedId, widths, briefingAt, drag])
 }
 
 /** The slot a scene would take: the number of other scenes whose centre lies left of its centre. */

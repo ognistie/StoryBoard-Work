@@ -6,13 +6,13 @@ import { CAMERA_MOVES, SHOT_TYPES } from '../types.js'
 
 const plannedFrameSchema = z.object({
   title: z.string(),
-  description: z.string().describe('Descrição visual objetiva do quadro, 1 a 2 frases.'),
+  description: z.string().describe('Descrição filmável: composição, posição e gesto, objeto-chave, profundidade e luz; 2 a 3 frases.'),
   action: z.string(),
   dialogue: z.string().describe('Falas no formato NOME: fala. Vazio se não houver fala.'),
   shot: z.enum(SHOT_TYPES).describe('Enquadramento. "motion" é cena de motion graphics; "conjunto" é plano de conjunto (grupo inteiro).'),
   movement: z.enum(CAMERA_MOVES).describe('Movimento de câmera. "estatico" é câmera fixa; "tracking" é travelling; "push-in" é aproximação lenta.'),
   characters: z.array(z.string()),
-  duration: z.int().describe('Duração em segundos.'),
+  duration: z.int().min(1).max(600).describe('Duração em segundos.'),
 })
 export const FORMATS = ['9:16', '1:1', '16:9'] as const
 export const MAX_SCENES = 6
@@ -20,13 +20,13 @@ export const MAX_SCENES = 6
 export const MAX_ATTACHMENT_CHARS = 12000
 
 export const planBriefingRequest = z.object({
-  briefing: z.string().min(1),
+  briefing: z.string().trim().min(1).max(16000),
   format: z.enum(FORMATS),
-  durationSeconds: z.int().positive(),
+  durationSeconds: z.int().min(1).max(600),
   attachment: z
     .discriminatedUnion('kind', [
       z.object({ kind: z.literal('text'), name: z.string(), text: z.string().max(MAX_ATTACHMENT_CHARS) }),
-      z.object({ kind: z.literal('image'), name: z.string(), dataUrl: z.string() }),
+      z.object({ kind: z.literal('image'), name: z.string(), dataUrl: z.string().max(4200000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/) }),
     ])
     .optional(),
 })
@@ -48,7 +48,7 @@ export const reviseSceneRequest = z.object({
   scene: sceneFieldsSchema,
   before: neighbourSchema.optional(),
   after: neighbourSchema.optional(),
-  instruction: z.string().min(1),
+  instruction: z.string().trim().min(1).max(4000),
   focus: z.enum(REVISE_FOCUSES),
 })
 export const reviseSceneResponse = z.object({

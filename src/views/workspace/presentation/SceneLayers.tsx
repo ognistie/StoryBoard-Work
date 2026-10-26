@@ -47,9 +47,9 @@ export function SceneImage({ frame, t }: { frame: Frame; t: string }) {
   return (
     <img
       src={url}
-      alt=""
+      alt={frame.description || frame.title}
       draggable={false}
-      className="absolute inset-0 size-full object-cover will-change-transform select-none"
+      className="absolute inset-0 size-full object-contain grayscale will-change-transform select-none"
       style={{ transform: motionTransform(motion, t) }}
     />
   )

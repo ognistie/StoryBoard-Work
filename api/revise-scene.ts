@@ -1,5 +1,6 @@
 import { generateText, Output } from 'ai'
 import { reviseSceneRequest, reviseSceneResponse } from '../src/lib/ai/contract.js'
+import { STORYBOARD_DIRECTION } from '../src/lib/ai/storyboard.js'
 import { handle, model } from '../src/lib/ai/server.js'
 
 const FOCUS_RULES = {
@@ -14,7 +15,8 @@ export const POST = handle(reviseSceneRequest, async ({ focus, ...data }, signal
     model,
     abortSignal: signal,
     output: Output.object({ schema: reviseSceneResponse }),
-    system: `Você é um diretor revisando uma cena de storyboard de um vídeo curto, em PT-BR.
+    system: `${STORYBOARD_DIRECTION}
+Você é um diretor revisando uma cena de storyboard de um vídeo curto, em PT-BR.
 Reescreva a cena seguindo o pedido. ${FOCUS_RULES[focus]}
 Devolva a cena completa, com todos os campos. A fala segue o formato NOME: fala, ou fica vazia.
 As cenas vizinhas servem só de contexto para manter a continuidade.

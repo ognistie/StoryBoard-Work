@@ -28,6 +28,7 @@ export function scriptMarkdown(project: Project, ordered: Frame[], briefing?: Pi
   ordered.forEach((f, i) => {
     const { speaker, line } = parseDialogue(f.dialogue)
     lines.push(`## Cena ${i + 1} · ${f.title} (${f.duration}s)`, '', `**Plano:** ${SHOT_LABEL[f.shot]} · **Câmera:** ${MOVE_LABEL[f.movement]} · **Formato:** ${f.aspect ?? project.aspect}`, '', f.description, '')
+    if (f.action) lines.push(`**Ação:** ${f.action}`, '')
     if (line) lines.push(`> **${speaker ?? 'Fala'}:** ${line}`, '')
   })
   return new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
@@ -40,7 +41,11 @@ export function shotListCsv(ordered: Frame[], scenes: Scene[]): Blob {
     const s = scenes.find((x) => x.id === f.sceneId)
     rows.push([String(i + 1), s ? `${s.number}. ${s.heading}` : '', f.title, SHOT_LABEL[f.shot], MOVE_LABEL[f.movement], f.angle, String(f.duration), f.characters.join(', '), f.location, f.lighting, f.action, f.dialogue, f.status])
   })
-  const csv = rows.map((r) => r.map((c) => `"${(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n')
+  // Quoting alone does not stop Excel from executing user-supplied formulas.
+  const csv = rows.map((r) => r.map((c) => {
+    const value = /^[\s\uFEFF]*[=+@-]/.test(c ?? '') ? `'${c}` : (c ?? '')
+    return `"${value.replace(/"/g, '""')}"`
+  }).join(';')).join('\n')
   return new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
 }
 

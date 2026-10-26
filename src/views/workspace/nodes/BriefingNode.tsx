@@ -2,6 +2,8 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { useState } from 'react'
 import { cx, Spinner, toast, toastError } from '../../../components/ui'
 import { applyBriefingChange } from '../../../lib/scenes'
+import { can } from '../../../lib/session'
+import { useWD } from '../context'
 import type { ContextDoc } from '../../../lib/types'
 
 export type BriefingNodeData = {
@@ -19,6 +21,7 @@ const CHIP = 'flex h-[22px] items-center rounded-md bg-[#F4F4F5] px-2 text-[12px
 
 /** The briefing at the top of the canvas. Saving an edit rewrites only the scenes it affects. */
 export function BriefingNode({ data }: NodeProps<BriefingNodeType>) {
+  const editable = can(useWD().role, 'edit')
   const { briefing, chips, redone } = data
   const [draft, setDraft] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -82,7 +85,7 @@ export function BriefingNode({ data }: NodeProps<BriefingNodeType>) {
             ))}
           </div>
           {draft === undefined ? (
-            <button onClick={() => setDraft(briefing?.text ?? '')} className="nodrag text-[13px] leading-4 font-medium text-link hover:underline">
+            <button disabled={!editable} onClick={() => setDraft(briefing?.text ?? '')} className="nodrag text-[13px] leading-4 font-medium text-link hover:underline disabled:hidden">
               Editar
             </button>
           ) : (

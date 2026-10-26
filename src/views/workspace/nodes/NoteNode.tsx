@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { toastError } from '../../../components/ui'
 import { timeAgo } from '../../../lib/hooks'
 import { deleteNote, updateNote } from '../../../lib/repo'
-import { userById } from '../../../lib/session'
+import { can, userById } from '../../../lib/session'
+import { useWD } from '../context'
 import type { Note } from '../../../lib/types'
 
 export type NoteNodeData = { note: Note; userId: string }
@@ -16,8 +17,10 @@ const PAPER =
 /** A sticky note. Drag it anywhere; double-click to write. A note left empty is removed. */
 export function NoteNode({ data }: NodeProps<NoteNodeType>) {
   const { note, userId } = data
+  const role = useWD().role
+  const editable = can(role, 'comment') && (role !== 'client' || note.authorId === userId)
   // Only a note that was just added opens for writing; an old empty one waits for a click.
-  const [draft, setDraft] = useState<string | undefined>(!note.text && Date.now() - note.createdAt < 5000 ? '' : undefined)
+  const [draft, setDraft] = useState<string | undefined>(editable && !note.text && Date.now() - note.createdAt < 5000 ? '' : undefined)
   const author = note.authorId === userId ? 'Você' : userById(note.authorId).name.split(' ')[0]
   const field = useRef<HTMLTextAreaElement>(null)
   const editing = draft !== undefined
@@ -57,7 +60,7 @@ export function NoteNode({ data }: NodeProps<NoteNodeType>) {
       <div className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-multiply" style={{ backgroundImage: 'url(/note-grain.webp)' }} />
       <div className="relative flex h-full flex-col justify-between pt-4 pr-3.5 pb-[11px] pl-[15px]">
         {draft === undefined ? (
-          <p onDoubleClick={() => setDraft(note.text)} title="Arraste para mover. Clique duas vezes para escrever." className="flex-1 cursor-grab font-hand text-[22px] leading-[23px] font-medium text-[#3B3626] active:cursor-grabbing">
+          <p onDoubleClick={() => editable && setDraft(note.text)} title={editable ? 'Arraste para mover. Clique duas vezes para escrever.' : 'Nota do projeto'} className="flex-1 font-hand text-[22px] leading-[23px] font-medium text-[#3B3626]">
             {note.text}
           </p>
         ) : (

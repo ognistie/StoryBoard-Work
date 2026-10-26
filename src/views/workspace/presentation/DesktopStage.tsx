@@ -117,8 +117,7 @@ function Backdrop({ frame, layer }: { frame: Frame; layer: Layer }) {
 }
 
 function FrameLayer({ frame, layer, room }: { frame: Frame; layer: Layer; room: { tall: number; wide: number } }) {
-  const { project } = useWD()
-  const size = frameSize(frame.aspect ?? project.aspect, room)
+  const size = frameSize('16:9', room)
   return (
     <div
       className={cx(
@@ -153,7 +152,7 @@ function UpNext({ frame, number, right }: { frame: Frame; number: number; right:
   const { project } = useWD()
   const url = useImageUrl(frame.imageId)
   const aspect = frame.aspect ?? project.aspect
-  const ratio = ASPECT_RATIO[aspect]
+  const ratio = ASPECT_RATIO['16:9']
   const thumb = ratio >= 1 ? { width: 96, height: Math.round(96 / ratio) } : { width: Math.round(96 * ratio), height: 96 }
   return (
     <div className="scene-fade absolute top-[calc(50%-112px)] flex w-[280px] flex-col gap-3.5" style={{ right }}>

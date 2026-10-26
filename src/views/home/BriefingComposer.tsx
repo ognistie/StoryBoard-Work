@@ -30,7 +30,7 @@ export function BriefingComposer() {
   const userId = useSession((s) => s.userId)
   const [briefing, setBriefing] = useState('')
   const [file, setFile] = useState<File>()
-  const [format, setFormat] = useState<BriefingFormat>('9:16')
+  const [format, setFormat] = useState<BriefingFormat>('16:9')
   const [durationSeconds, setDurationSeconds] = useState(30)
   const [busy, setBusy] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)

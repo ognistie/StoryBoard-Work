@@ -15,12 +15,12 @@ export type SceneFields = z.infer<typeof sceneFieldsSchema>
 
 const SCENE_FIELDS = Object.keys(sceneFieldsSchema.shape) as (keyof SceneFields)[]
 /** What the drawing depicts. A change here makes the old drawing wrong. */
-const VISUAL_FIELDS: (keyof SceneFields)[] = ['description', 'shot', 'movement']
+const VISUAL_FIELDS: (keyof SceneFields)[] = ['description', 'action', 'shot', 'movement']
 
 /** The fields each focus lets the model change. Everything else stays as it was. */
 const FOCUS_FIELDS: Record<ReviseFocus, (keyof SceneFields)[]> = {
   all: SCENE_FIELDS,
-  drawing: VISUAL_FIELDS,
+  drawing: ['description', 'shot', 'movement'],
   dialogue: ['dialogue'],
   shorter: ['description', 'action', 'dialogue', 'duration'],
 }
@@ -57,8 +57,9 @@ export function canRedraw(frame: Pick<FrameContent, 'sketch' | 'imageId'>): bool
 export const KEPT_IMAGE_NOTE = 'Desenho mantido: imagem original.'
 
 /** Draws a scene with the local sketch renderer. The app never generates images with AI. */
-export async function drawScene(scene: Pick<SceneFields, 'description' | 'action' | 'shot' | 'movement'>, aspect: Project['aspect']): Promise<Pick<FrameContent, 'sketch' | 'imageId'>> {
-  const sketch = specFromDescription(`${scene.description} ${scene.action}`, { shot: scene.shot, movement: scene.movement, aspect })
+export async function drawScene(scene: Pick<SceneFields, 'description' | 'action' | 'shot' | 'movement'>, _deliveryAspect: Project['aspect']): Promise<Pick<FrameContent, 'sketch' | 'imageId'>> {
+  // The board is always landscape; the project's distribution format remains separate metadata.
+  const sketch = specFromDescription(`${scene.description} ${scene.action}`, { shot: scene.shot, movement: scene.movement, aspect: '16:9' })
   const image = await sketchToBlob(sketch)
   return { sketch, imageId: await putImage(image.blob, image.width, image.height) }
 }
@@ -79,12 +80,17 @@ function aiRecord(instruction: string, latencyMs: number, summary: string): AIRe
 }
 
 /** Saves `fields` as a new version. When the visual fields changed, redraws the scene unless its image is a real one. */
-async function commitSceneVersion(frame: Frame, project: Project, fields: SceneFields, wantsRedraw: boolean, userId: string, message: string, kind: RevisionKind, ai: AIRecord) {
+async function commitSceneVersion(frame: Frame, project: Project, fields: SceneFields, wantsRedraw: boolean, userId: string, message: string, kind: RevisionKind, ai: AIRecord, prepared?: Pick<FrameContent, 'sketch' | 'imageId'>) {
   const redraw = wantsRedraw && canRedraw(frame)
-  const drawing = redraw ? await drawScene(fields, frame.aspect ?? project.aspect) : {}
+  const drawing = prepared ?? (redraw ? await drawScene(fields, frame.aspect ?? project.aspect) : {})
   const summary = wantsRedraw && !redraw ? [ai.summary, KEPT_IMAGE_NOTE].filter(Boolean).join(' ') : ai.summary
-  await updateFrame(frame.id, userId, { ...fields, ...drawing })
-  await commitFrame(frame.id, userId, message, kind, { ai: { ...ai, summary } })
+  // Compare and save atomically, after rendering: a teammate's edit must not be overwritten.
+  await db.transaction('rw', db.frames, db.revisions, db.events, db.projects, async () => {
+    const latest = await db.frames.get(frame.id)
+    if (!latest || latest.headRevisionId !== frame.headRevisionId || latest.updatedAt !== frame.updatedAt || latest.imageId !== frame.imageId || JSON.stringify(sceneFieldsOf(latest)) !== JSON.stringify(sceneFieldsOf(frame))) throw new StaleRevisionError()
+    await updateFrame(frame.id, userId, { ...fields, ...drawing })
+    await commitFrame(frame.id, userId, message, kind, { ai: { ...ai, summary } })
+  })
 }
 
 /** Rewrites one scene from a short instruction. Creates a new revision (kind 'ai-edit') whose message is the instruction. */
@@ -162,15 +168,22 @@ export async function applyBriefingChange(input: { projectId: string; briefing: 
   const ids = response.changes.map((c) => c.id)
   if (ids.some((id) => !byId.has(id)) || new Set(ids).size !== ids.length) throw new Error('A IA devolveu cenas que não existem neste projeto. Tente de novo.')
 
-  // Saved only after the model answered, so a failure never leaves a new briefing over old scenes.
-  await saveBriefing()
-  const changed: string[] = []
-  for (const change of response.changes) {
+  const changes = response.changes.filter((change) => changedSceneFields(sceneFieldsOf(byId.get(change.id)!), change.scene).length)
+  // Canvas rendering and blob storage happen before opening an IndexedDB transaction.
+  const prepared = await Promise.all(changes.map(async (change) => {
     const frame = byId.get(change.id)!
-    const current = sceneFieldsOf(frame)
-    if (!changedSceneFields(current, change.scene).length) continue
-    await commitSceneVersion(frame, project, change.scene, changesDrawing(current, change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, latencyMs, change.reason))
-    changed.push(frame.id)
-  }
-  return changed
+    const redraw = changesDrawing(sceneFieldsOf(frame), change.scene) && canRedraw(frame)
+    return redraw ? drawScene(change.scene, frame.aspect ?? project.aspect) : {}
+  }))
+  return db.transaction('rw', [db.frames, db.revisions, db.events, db.projects, db.docs, db.docVersions], async () => {
+    const latestBrief = await briefDoc(project.id)
+    if (latestBrief?.id !== doc?.id || latestBrief?.version !== doc?.version || latestBrief?.text !== doc?.text) throw new StaleRevisionError()
+    // Saving the brief and all changed scenes is one unit: a stale scene rolls back everything.
+    await saveBriefing()
+    for (const [i, change] of changes.entries()) {
+      const frame = byId.get(change.id)!
+      await commitSceneVersion(frame, project, change.scene, changesDrawing(sceneFieldsOf(frame), change.scene), input.userId, change.reason, 'briefing', aiRecord(briefing, latencyMs, change.reason), prepared[i])
+    }
+    return changes.map((c) => c.id)
+  })
 }

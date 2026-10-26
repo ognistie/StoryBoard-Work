@@ -68,9 +68,10 @@ describe('canRedraw', () => {
 })
 
 describe('changesDrawing', () => {
-  it('is true only when the description, shot or movement changed', () => {
+  it('is true when visual description, action, shot or movement changes', () => {
     expect(changesDrawing(scene, { ...scene, dialogue: 'x', duration: 3, title: 'y' })).toBe(false)
     expect(changesDrawing(scene, { ...scene, movement: 'pan' })).toBe(true)
+    expect(changesDrawing(scene, { ...scene, action: 'Ela deixa a sala.' })).toBe(true)
   })
 })
 
@@ -144,6 +145,33 @@ describe('saving AI changes', () => {
     vi.stubGlobal('fetch', fetch)
     await expect(reviseScene({ frameId, instruction: 'x', focus: 'all', userId: CLIENT })).rejects.toBeInstanceOf(PermissionError)
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('does not overwrite an uncommitted manual edit made while the AI was answering', async () => {
+    const { frameId } = await project()
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await db.frames.update(frameId, { dialogue: 'Fala editada por outra pessoa.' })
+      return Response.json({ scene: proposed, summary: 'Nova fala.' })
+    }))
+    await expect(reviseScene({ frameId, instruction: 'Mudar fala', focus: 'dialogue', userId: PRODUCER })).rejects.toThrow(/mudou|versão/i)
+    expect((await db.frames.get(frameId))!.dialogue).toBe('Fala editada por outra pessoa.')
+    expect(await db.revisions.where('frameId').equals(frameId).count()).toBe(1)
+  })
+
+  it('rolls back the briefing and all AI edits when any scene became stale', async () => {
+    const { projectId, frameId, otherId } = await project()
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      await db.frames.update(otherId, { dialogue: 'Edição concorrente.' })
+      return Response.json({ changes: [
+        { id: frameId, scene: { ...scene, dialogue: 'Primeira alteração IA.' }, reason: 'Novo briefing' },
+        { id: otherId, scene: { ...scene, dialogue: 'Segunda alteração IA.' }, reason: 'Novo briefing' },
+      ] })
+    }))
+    await expect(applyBriefingChange({ projectId, briefing: 'Briefing novo', userId: PRODUCER })).rejects.toThrow(/mudou|versão/i)
+    expect((await db.docs.where('projectId').equals(projectId).first())!.text).toBe('Briefing antigo')
+    expect((await db.frames.get(frameId))!.dialogue).toBe(scene.dialogue)
+    expect((await db.frames.get(otherId))!.dialogue).toBe('Edição concorrente.')
+    expect(await db.revisions.where('frameId').equals(frameId).count()).toBe(1)
   })
 
   it('applyBriefingChange versions the briefing and commits a "briefing" revision only on the scenes that changed', async () => {

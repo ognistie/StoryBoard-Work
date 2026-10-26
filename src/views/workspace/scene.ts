@@ -12,8 +12,8 @@ export const FORMAT_LABEL: Record<Aspect, string> = {
 /** Width/height of each format, as a number. */
 export const ASPECT_RATIO: Record<Aspect, number> = { '9:16': 9 / 16, '1:1': 1, '16:9': 16 / 9, '2.39:1': 2.39 }
 
-// Card widths from the Paper design: 200 for 9:16 and 260 for 1:1. The wide formats keep a similar area.
-export const DEFAULT_CARD_WIDTH: Record<Aspect, number> = { '9:16': 200, '1:1': 260, '16:9': 340, '2.39:1': 380 }
+// Consistent widths keep technical sheets readable in every delivery format.
+export const DEFAULT_CARD_WIDTH: Record<Aspect, number> = { '9:16': 340, '1:1': 340, '16:9': 340, '2.39:1': 380 }
 
 export const SHOT_TAG: Record<ShotType, string> = {
   geral: 'GERAL',

@@ -1529,6 +1529,7 @@ export async function sketchToBlob(spec: StoryboardSpec, preview = false): Promi
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')!
+  ctx.filter = 'grayscale(1)'
   renderSketch(ctx, spec, width, height)
   if (preview) {
     const small = document.createElement('canvas')
