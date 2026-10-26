@@ -116,7 +116,7 @@ export function SceneNode({ data, width: liveWidth }: NodeProps<SceneNodeType>) 
         </div>
 
         <div className="flex flex-col gap-3 border-t border-line p-3">
-          <div className="flex flex-col gap-[3px]">
+          <div role="region" aria-label={`Ficha do plano ${number}`} tabIndex={0} className="nodrag nowheel flex max-h-[180px] flex-col gap-[3px] overflow-y-auto rounded-md break-words outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
             {shown.action && <p className="mb-1 text-[12px] leading-[17px] text-fg"><strong>Ação: </strong>{shown.action}</p>}
             {speaker && <span className="text-[9.5px] leading-3 font-semibold tracking-[0.08em] text-muted uppercase">{speaker}</span>}
             {line && <span className="text-[12px] leading-[17px] italic text-fg">{quoted(line)}</span>}
