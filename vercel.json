@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/plan-briefing.ts": { "maxDuration": 60 },
+    "api/revise-scene.ts": { "maxDuration": 60 },
+    "api/apply-briefing.ts": { "maxDuration": 60 },
+    "api/assistant.ts": { "maxDuration": 60 },
+    "api/google.ts": { "maxDuration": 60 }
+  }
+}

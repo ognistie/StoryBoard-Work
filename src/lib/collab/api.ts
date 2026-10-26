@@ -21,6 +21,7 @@ export async function api<Schema extends z.ZodType>(path: string, schema: Schema
     res = await fetch(`/api/${path}`, {
       credentials: 'same-origin',
       ...rest,
+      signal: AbortSignal.any([...(rest.signal ? [rest.signal] : []), AbortSignal.timeout(20000)]),
       headers: json !== undefined ? { 'Content-Type': 'application/json', ...rest.headers } : rest.headers,
       body: json !== undefined ? JSON.stringify(json) : rest.body,
     })

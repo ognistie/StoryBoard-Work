@@ -26,8 +26,9 @@ export function handle<Schema extends z.ZodType>(schema: Schema, run: (input: z.
     if (!parsed.success) throw new HttpError(400, z.prettifyError(parsed.error))
     await rateLimit(`ai:${clientIp(request)}`, AI_PER_MINUTE, 60)
     try {
-      return Response.json(await run(parsed.data, request.signal))
+      return Response.json(await run(parsed.data, AbortSignal.any([request.signal, AbortSignal.timeout(50000)])))
     } catch (e) {
+      if ((e as Error).name === 'TimeoutError' || (e as Error).name === 'AbortError') throw new HttpError(504, 'A IA demorou mais que o esperado. Tente novamente; suas cenas continuam salvas.')
       throw new HttpError(502, (e as Error).message)
     }
   })

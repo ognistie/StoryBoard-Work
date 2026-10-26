@@ -8,9 +8,10 @@ export const openaiProvider: { label: string; model: string } = { label: 'OpenAI
 export async function post<Response extends z.ZodType>(task: string, body: unknown, response: Response, signal: AbortSignal): Promise<z.infer<Response>> {
   let res: globalThis.Response
   try {
-    res = await fetch(`/api/${task}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal })
+    res = await fetch(`/api/${task}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.any([signal, AbortSignal.timeout(65000)]) })
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e
+    if ((e as Error).name === 'TimeoutError') throw new Error('A IA demorou mais que o esperado. Tente novamente; suas cenas continuam salvas.')
     throw new Error('Sem conexão com a IA. Confira a internet e tente de novo.')
   }
   const json = (await res.json().catch(() => ({}))) as { error?: string }

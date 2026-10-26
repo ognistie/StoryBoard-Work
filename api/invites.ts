@@ -16,6 +16,7 @@ async function sendInviteEmail(invite: Invite, link: string): Promise<boolean> {
   const from = process.env.INVITE_FROM_EMAIL || 'Decupa <onboarding@resend.dev>'
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
+    signal: AbortSignal.timeout(8000),
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from,

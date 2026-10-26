@@ -16,7 +16,8 @@ export const useHealth = create<Health>(() => ({ checked: false, ai: true, textM
 /** Asks the server what it can do. Without a server (static preview) everything stays local. */
 export async function checkHealth() {
   try {
-    const res = await fetch('/api/health', { cache: 'no-store' })
+    const res = await fetch('/api/health', { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+    if (!res.ok) throw new Error('Servidor indisponível.')
     const health = healthResponse.parse(await res.json())
     openaiProvider.model = health.textModel
     useHealth.setState({ checked: true, ...health })

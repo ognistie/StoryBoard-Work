@@ -31,6 +31,7 @@ class UpstashKV implements KV {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(commands.map((c) => c.map(String))),
+      signal: AbortSignal.timeout(12000),
     })
     if (!res.ok) throw new Error(`Armazenamento respondeu HTTP ${res.status}`)
     const out = (await res.json()) as { result?: unknown; error?: string }[]
