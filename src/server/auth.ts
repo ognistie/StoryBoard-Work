@@ -6,8 +6,9 @@ import { one, parseJSON, type KV } from './kv.js'
 // sessions are random tokens kept only as a SHA-256 hash, so a leaked store reveals neither.
 
 interface StoredUser extends PublicUser {
-  salt: string
-  hash: string
+  salt?: string
+  hash?: string
+  googleSubject?: string
   createdAt: number
 }
 
@@ -45,6 +46,12 @@ export async function findUserIdByEmail(kv: KV, email: string): Promise<string |
   return one<string | null>(kv, ['GET', emailKey(email)])
 }
 
+/** Password signup alone does not prove email ownership; Google verifies it before account creation. */
+export async function hasVerifiedEmail(kv: KV, userId: string): Promise<boolean> {
+  const user = parseJSON<StoredUser>(await one(kv, ['GET', userKey(userId)]))
+  return !!user?.googleSubject
+}
+
 export async function signup(kv: KV, input: { email: string; name: string; password: string }): Promise<PublicUser> {
   const id = `usr_${randomToken(9)}`
   const salt = randomToken(16)
@@ -66,7 +73,7 @@ export async function login(kv: KV, input: { email: string; password: string }):
   // Hash anyway when the account does not exist, so timing does not reveal which emails have accounts.
   const user = id ? parseJSON<StoredUser>(await one(kv, ['GET', userKey(id)])) : null
   const hash = await hashPassword(input.password, user?.salt ?? 'no-account')
-  if (!user || !safeEqual(hash, user.hash)) throw fail
+  if (!user?.hash || !safeEqual(hash, user.hash)) throw fail
   return toPublic(user)
 }
 
@@ -74,6 +81,22 @@ export async function createSession(kv: KV, userId: string): Promise<string> {
   const token = randomToken(32)
   await one(kv, ['SET', sessionKey(await sha256(token)), userId, 'EX', SESSION_DAYS * 86400])
   return token
+}
+
+/** Do not silently link a password account: its email has not been verified. */
+export async function googleAccount(kv: KV, input: { subject: string; email: string; name: string }): Promise<PublicUser> {
+  const id = `google_${await sha256(input.subject)}`
+  const existing = parseJSON<StoredUser>(await one(kv, ['GET', userKey(id)]))
+  if (existing?.googleSubject === input.subject) return toPublic(existing)
+  if (await findUserIdByEmail(kv, input.email)) throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com sua senha.')
+  const user: StoredUser = { id, email: input.email, name: input.name, googleSubject: input.subject, createdAt: Date.now() }
+  await one(kv, ['SET', userKey(id), JSON.stringify(user), 'NX'])
+  const claimed = await one(kv, ['SET', emailKey(input.email), id, 'NX'])
+  if (claimed !== 'OK' && await findUserIdByEmail(kv, input.email) !== id) {
+    await one(kv, ['DEL', userKey(id)])
+    throw new HttpError(409, 'Já existe uma conta com este e-mail. Entre com sua senha.')
+  }
+  return toPublic(user)
 }
 
 export async function endSession(kv: KV, request: Request) {

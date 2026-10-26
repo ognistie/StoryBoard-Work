@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { create } from 'zustand'
 import { signIn, useAuth } from '../lib/collab/auth'
 import { refreshRemote } from '../lib/collab/remote'
@@ -15,7 +15,8 @@ const FIELD = 'h-11 w-full rounded-[12px] border border-line bg-white px-3.5 tex
 
 export function AuthModal() {
   const { open, reason, onDone } = useAuthModal()
-  const collab = useAuth((s) => s.collab)
+  const { collab, google } = useAuth()
+  const submitting = useRef(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -31,6 +32,8 @@ export function AuthModal() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting.current) return
+    submitting.current = true
     setBusy(true)
     setError(undefined)
     try {
@@ -42,6 +45,7 @@ export function AuthModal() {
     } catch (err) {
       setError((err as Error).message)
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
@@ -51,6 +55,7 @@ export function AuthModal() {
       type="button"
       role="tab"
       aria-selected={mode === id}
+      disabled={busy}
       onClick={() => (setMode(id), setError(undefined))}
       className={cx('flex h-[30px] flex-1 items-center justify-center rounded-full text-[13px] leading-4 transition-colors', mode === id ? 'bg-white font-semibold text-black shadow-[0_1px_2px_#0000001A]' : 'font-medium text-fg-2 hover:text-black')}
     >
@@ -66,15 +71,18 @@ export function AuthModal() {
         </p>
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-3">
+          {google && <a href={`/api/google?returnTo=${encodeURIComponent(location.hash || '#/')}`} className="flex h-11 items-center justify-center rounded-[12px] border border-line bg-white text-[14px] font-medium text-fg hover:bg-surface-2">Continuar com Google</a>}
           {reason && <p className="text-[14px] leading-5 text-fg-2">{reason}</p>}
           <div role="tablist" className="flex rounded-full bg-surface-2 p-[3px]">
             {tab('login', 'Entrar')}
             {tab('signup', 'Criar conta')}
           </div>
-          {mode === 'signup' && <input className={FIELD} placeholder="Seu nome" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />}
-          <input className={FIELD} type="email" placeholder="E-mail" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          {mode === 'signup' && <input aria-label="Seu nome" maxLength={60} className={FIELD} placeholder="Seu nome" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />}
+          <input aria-label="E-mail" maxLength={254} className={FIELD} type="email" placeholder="E-mail" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <input
             className={FIELD}
+            aria-label="Senha"
+            maxLength={200}
             type="password"
             placeholder={mode === 'signup' ? 'Senha (mín. 8 caracteres)' : 'Senha'}
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}

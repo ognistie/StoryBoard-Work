@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 /** Server-side variables read from .env.local in development. Never bundled into the browser. */
-const SERVER_ENV = ['OPENAI_', 'KV_', 'UPSTASH_', 'RESEND_', 'INVITE_']
+const SERVER_ENV = ['OPENAI_', 'KV_', 'UPSTASH_', 'RESEND_', 'INVITE_', 'GOOGLE_']
 
 /**
  * Serves the Vercel functions in api/ during `bun run dev`, so AI and collaboration work locally

@@ -70,7 +70,7 @@ export type Invite = z.infer<typeof invite>
 
 // ---------------------------------------------------------------- auth
 
-export const authState = z.object({ user: publicUser.nullable(), collab: z.boolean() })
+export const authState = z.object({ user: publicUser.nullable(), collab: z.boolean(), google: z.boolean().default(false) })
 export type AuthState = z.infer<typeof authState>
 
 export const authRequest = z.discriminatedUnion('action', [

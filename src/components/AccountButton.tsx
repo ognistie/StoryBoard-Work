@@ -1,7 +1,7 @@
 import { LogOut, Settings } from 'lucide-react'
 import { signOut, useAuth } from '../lib/collab/auth'
 import { askSignIn } from './AuthModal'
-import { Avatar, cx, Menu, MenuItem, toast } from './ui'
+import { Avatar, cx, Menu, MenuItem, toast, toastError } from './ui'
 
 /**
  * The avatar at the right of a header. Signed in: the account menu. Signed out: "Entrar".
@@ -50,7 +50,7 @@ export function AccountButton({ onSettings, glass = false, size = 32 }: { onSett
             icon={<LogOut />}
             onClick={() => {
               close()
-              void signOut().then(() => toast('Você saiu da conta. Projetos compartilhados ficam guardados para quando voltar.'))
+              void signOut().then(() => toast('Você saiu da conta. Projetos compartilhados ficam guardados para quando voltar.')).catch(toastError)
             }}
           >
             Sair

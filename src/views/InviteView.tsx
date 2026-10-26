@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { navigate } from '../App'
 import { askSignIn } from '../components/AuthModal'
 import { Button, toastError } from '../components/ui'
-import { useAuth } from '../lib/collab/auth'
+import { signOut, useAuth } from '../lib/collab/auth'
 import { acceptInvite } from '../lib/collab/remote'
 
 /** Where an invite link lands: sign in (or create the account), then join the project. */
@@ -11,6 +11,7 @@ export function InviteView({ token }: { token: string }) {
   const [busy, setBusy] = useState(false)
 
   const join = async () => {
+    if (busy) return
     setBusy(true)
     try {
       const project = await acceptInvite(token)
@@ -28,7 +29,7 @@ export function InviteView({ token }: { token: string }) {
         <div className="flex flex-col gap-2">
           <h1 className="text-[24px] leading-[30px] font-medium tracking-[-0.025em] text-fg">Você recebeu um convite</h1>
           <p className="text-[15px] leading-[22px] text-muted">
-            {user ? `Entre no projeto como ${user.name}. Você verá as cenas, o chat e a pasta de arquivos do time.` : 'Entre com o e-mail que recebeu o convite, ou crie sua conta, para participar do projeto.'}
+            {user ? `Entre no projeto como ${user.name} (${user.email}). Você verá as cenas, o chat e a pasta de arquivos do time.` : 'Entre com o e-mail que recebeu o convite, ou crie sua conta, para participar do projeto.'}
           </p>
         </div>
         {user ? (
@@ -40,6 +41,7 @@ export function InviteView({ token }: { token: string }) {
             Entrar ou criar conta
           </Button>
         )}
+        {user && <button disabled={busy} className="text-[14px] text-link hover:underline" onClick={() => void signOut().then(() => askSignIn('Entre com o e-mail que recebeu o convite.', () => void join())).catch(toastError)}>Usar outra conta</button>}
         <a href="#/" className="text-[14px] text-link hover:underline">
           Voltar ao início
         </a>

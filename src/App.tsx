@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AuthModal } from './components/AuthModal'
-import { Toaster } from './components/ui'
+import { Toaster, toast } from './components/ui'
 import { refreshAuth } from './lib/collab/auth'
 import { refreshRemote } from './lib/collab/remote'
 import { checkHealth } from './lib/health'
@@ -36,6 +36,13 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const authResult = new URLSearchParams(location.search).get('auth_result')
+    if (authResult) {
+      const url = new URL(location.href)
+      url.searchParams.delete('auth_result')
+      history.replaceState(null, '', url)
+      if (authResult !== 'ok') setTimeout(() => toast(authResult === 'google_existing_account' ? 'Este e-mail já tem uma conta. Entre com sua senha.' : authResult === 'google_cancelled' ? 'Login Google cancelado. Você pode tentar novamente.' : 'Não foi possível entrar com Google. Tente novamente ou use e-mail e senha.', { tone: 'danger' }), 1000)
+    }
     void checkHealth()
     // The account must be known before the first render: it decides which projects show.
     // Seed first: its migration hands old local projects to the guest, and signing in then claims them.

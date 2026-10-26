@@ -10,12 +10,13 @@ interface AuthStore {
   user: PublicUser | null
   /** The deployment has a store, so sharing, chat and the shared folder work. */
   collab: boolean
+  google: boolean
 }
 
-export const useAuth = create<AuthStore>(() => ({ status: 'loading', user: null, collab: false }))
+export const useAuth = create<AuthStore>(() => ({ status: 'loading', user: null, collab: false, google: false }))
 
-function apply(user: PublicUser | null, collab: boolean) {
-  useAuth.setState({ status: 'ready', user, collab })
+function apply(user: PublicUser | null, collab: boolean, google = false) {
+  useAuth.setState({ status: 'ready', user, collab, google })
   useSession.setState({ userId: user?.id ?? GUEST_ID })
   if (user) rememberPeople([user])
 }
@@ -39,7 +40,7 @@ export async function refreshAuth() {
   try {
     const state = await api('auth', authState)
     if (state.user) await claimGuestProjects(state.user.id)
-    apply(state.user, state.collab)
+    apply(state.user, state.collab, state.google)
   } catch {
     // No server (static preview) or offline: the app works as a guest, local only.
     apply(null, false)
@@ -52,11 +53,11 @@ export async function signIn(input: { mode: 'login' | 'signup'; email: string; p
     json: input.mode === 'signup' ? { action: 'signup', email: input.email, password: input.password, name: input.name } : { action: 'login', email: input.email, password: input.password },
   })
   if (state.user) await claimGuestProjects(state.user.id)
-  apply(state.user, state.collab)
+  apply(state.user, state.collab, state.google)
   return state.user
 }
 
 export async function signOut() {
-  await api('auth', authState, { method: 'POST', json: { action: 'logout' } }).catch(() => undefined)
-  apply(null, useAuth.getState().collab)
+  const state = await api('auth', authState, { method: 'POST', json: { action: 'logout' } })
+  apply(null, state.collab, state.google)
 }
