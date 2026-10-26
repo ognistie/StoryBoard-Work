@@ -56,7 +56,7 @@ As chamadas passam pelas funções em `api/`, então a chave nunca chega ao nave
 
 ## Linguagem visual dos quadros
 
-- **Nós de cena** no estilo do Magnific (Paper, `02 — Canvas`): o desenho ocupa o cartão no formato da cena, com a pílula de versão, a fala e as pílulas de plano, câmera e formato embaixo.
+- **Prancha cinematográfica:** quadros 16:9 em preto e branco e ficha técnica abaixo, sem texto sobre a imagem. Cada plano tem número, enquadramento, ação, câmera e duração. O formato de distribuição (Reels, Feed etc.) continua salvo no projeto. PDF em duas colunas; imagens existentes são preservadas sem corte.
 - **Renderizador local** (`src/lib/sketch.ts`): desenha cada cena nova a partir da descrição, com traço preto fino, cinza claro, azul só nos objetos-chave e uma seta vermelha para o movimento de câmera. Os projetos de exemplo usam desenhos prontos de `public/demo/`, que a IA nunca substitui.
 - Em desenvolvimento, `#/lab` mostra uma galeria do renderizador com todos os enquadramentos.
 
@@ -81,7 +81,7 @@ src/lib/         domínio: types, db (Dexie), repo (mutações+permissões), con
                  sincronização, convites), zip, sketch* (renderizador local), session, seed
 src/server/      código só do servidor: kv (Upstash ou memória), http (origem, cookies, limite), auth, projects
 api/             funções da Vercel: IA (plan-briefing, revise-scene, apply-briefing, assistant), health,
-                 auth, projects, invites, sync e blob
+                 auth, google, projects, invites, sync e blob
 src/views/       Home (início: campo de briefing, mural, projetos; peças em home/), Workspace
 src/views/workspace/  SceneCanvas (React Flow: briefing, cenas, notas, zoom), nodes/ (BriefingNode, SceneNode, NoteNode),
                  Inspector (Versões e Ficha), ChatPanel, FilesPanel, ShareModal, PromptBox, ExportMenu,
@@ -96,3 +96,13 @@ public/guia/     guia público de storyboard e IA, para busca orgânica (pesquis
 - **Arquivos até 3 MB**, guardados no Redis. Para arquivos maiores, o caminho é o Vercel Blob com URLs assinadas.
 - **Senha sem recuperação por e-mail**: falta o fluxo de “esqueci a senha”.
 - **Fora do escopo do MVP**: desfazer/refazer granular na ficha (a restauração de versões já existe).
+
+## Login com Google
+
+Crie um cliente OAuth do tipo **Aplicativo da Web** no Google Cloud. Cadastre a URI de redirecionamento `https://decupaai.vercel.app/api/google`. Na Vercel, adicione `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`; opcionalmente fixe `GOOGLE_REDIRECT_URI` com esse mesmo endereço. Faça Redeploy. Para desenvolvimento, autorize também `http://localhost:5173/api/google` e use essa URI no `.env.local`. As credenciais nunca usam prefixo `VITE_`.
+
+O botão aparece quando o servidor informa que Google está configurado. O convite é preservado durante o login. Contas já criadas com senha continuam entrando por senha; não há vínculo automático de identidades por segurança.
+
+Convites são vinculados ao e-mail destinatário. Contas com senha entram pelo link secreto recebido; a listagem automática de convites exige e-mail verificado pelo Google, para impedir que um cadastro com e-mail de terceiros revele seus convites.
+
+Evidências, limites e roteiro de QA: [validação de 26/10/2026](docs/validacao-2026-10-26.md).

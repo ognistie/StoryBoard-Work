@@ -24,11 +24,15 @@ Produto, design (arquivo no Paper) e o projeto de exemplo da iugu: `CONTEXT.md`.
 
 ## Colaboração
 
-- Login por e-mail e senha, convites por e-mail ou link, projetos compartilhados, chat do projeto e pasta de arquivos. Código do servidor em `src/server/`, contrato em `src/lib/collab/contract.ts`, sincronização em `src/lib/collab/sync.ts`.
+- Login por e-mail e senha ou Google (quando configurado), convites por e-mail ou link, projetos compartilhados, chat do projeto e pasta de arquivos. Código do servidor em `src/server/`, contrato em `src/lib/collab/contract.ts`, sincronização em `src/lib/collab/sync.ts`.
 - Armazenamento: Upstash Redis pela integração da Vercel (`KV_REST_API_URL` e `KV_REST_API_TOKEN`, com ou sem prefixo, como `STORAGE_KV_REST_API_URL`). Sem essas variáveis, o `bun run dev` guarda tudo em memória e a Vercel desliga a colaboração; o app continua funcionando só no navegador.
 - Convite por e-mail precisa de `RESEND_API_KEY` (e `INVITE_FROM_EMAIL`). Sem ela, o app mostra o link para copiar.
 - Os projetos de exemplo são de cada navegador (`example: true`); ao compartilhar, viram projeto da conta.
-- Na Vercel Hobby cabem 12 funções. Hoje são 10 em `api/`.
+- Convite é do e-mail destinatário. Não expor tokens em listagens para e-mails não verificados: contas com senha usam o link entregue; Google verificado pode listar convites. Papel Cliente só altera notas/mensagens próprias.
+- Na Vercel Hobby cabem 12 funções. Hoje são 11 em `api/`, incluindo `google.ts`.
+
+- Google: `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` no servidor. Callback autorizado: `https://decupaai.vercel.app/api/google`; `GOOGLE_REDIRECT_URI` fixa o endereço. Authorization code + PKCE, estado vinculado ao navegador e uso único; não vincular automaticamente contas com senha por e-mail.
+- Decisão de 26/10/2026: prancha 16:9 em preto e branco com imagem e ficha técnica separadas; formato de distribuição do projeto é metadado independente. Desenhos novos continuam locais/esquemáticos. Direção compartilhada em `src/lib/ai/storyboard.ts`. Revisão de briefing e cenas deve ser atômica, com recusa de edições concorrentes.
 
 ## Trabalho em dupla no `main`
 
